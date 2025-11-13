@@ -224,6 +224,7 @@ The goal is to process multiple sensor inputs and decide if a fire is detected, 
 
 ## Architecture Overview
 
+```
 ┌──────────────┐
 │   Sensors    │
 └──────────────┘
@@ -253,6 +254,7 @@ The goal is to process multiple sensor inputs and decide if a fire is detected, 
 │ Alert/Pump   │
 └──────────────┘
 
+```
 
 ---
 
