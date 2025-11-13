@@ -225,12 +225,34 @@ The goal is to process multiple sensor inputs and decide if a fire is detected, 
 ## Architecture Overview
 
 ┌──────────────┐
-│ Sensors      │      ┌──────────────┐       ┌──────────────┐         ┌──────────────┐
-│ Preprocessing│ ---> │ Temp/Smoke/IR│  ---> │ AI / Decision│         │ Actions      │
-│ Filtering    │      └──────────────┘       │ Risk Score   │  --->   │ Alert/Pump   │
-│ Normalization│                             │ Thresholds   │         └──────────────┘
-└──────────────┘                             └──────────────┘
-      
+│   Sensors    │
+└──────────────┘
+       │
+       ▼
+┌──────────────┐
+│ Preprocessing│
+│ Filtering    │
+│ Normalization│
+└──────────────┘
+       │
+       ▼
+┌──────────────┐
+│ Temp/Smoke/IR│
+└──────────────┘
+       │
+       ▼
+┌──────────────┐
+│ AI / Decision│
+│ Risk Score   │
+│ Thresholds   │
+└──────────────┘
+       │
+       ▼
+┌──────────────┐
+│ Actions      │
+│ Alert/Pump   │
+└──────────────┘
+
 
 ---
 
