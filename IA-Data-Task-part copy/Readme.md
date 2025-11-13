@@ -287,7 +287,7 @@ if risk_score > critical_threshold:
 - Enable a quick testing with simulated or real sensor data
 - Integrate with ESP32 and the full project state machine
 
-# Task 6: Définir le format de données capteurs (JSON)
+# Task 5: Définir le format de données capteurs (JSON)
 
 ## Objectif
 Définir un format standardisé pour toutes les données des capteurs afin que :  
