@@ -205,3 +205,78 @@ if flame_detected_ir or temperature > thresholds["temperature_absolute"] or smok
 - Detect early-stage fires before they become critical.
 - Thresholds can later be adjusted automatically or manually after testing.
 
+# Task 4: Concevoir l’architecture de décision IA
+
+## Objective
+Design the AI decision architecture for the IgnisCore fire detection system.  
+The goal is to process multiple sensor inputs and decide if a fire is detected, and which actions to trigger (alerts, water pump, logging).
+
+---
+
+## Principle
+
+- Inputs: temperature, smoke/gas, IR/flame, optionally humidity or CO2.  
+- Pre-processing: smoothing, derivative calculation (rate of change), normalization.  
+- AI decision module: computes a risk score based on sensor inputs and thresholds.  
+- Actions: triggers alerts and water pump if the risk exceeds a critical threshold.
+
+---
+
+## Architecture Overview
+
+┌──────────────┐
+│ Sensors      │
+│ Temp/Smoke/IR│
+└─────┬────────┘
+      │
+      ▼
+┌──────────────┐
+│ Preprocessing│
+│ Filtering    │
+│ Normalization│
+└─────┬────────┘
+      │
+      ▼
+┌──────────────┐
+│ AI / Decision│
+│ Risk Score   │
+│ Thresholds   │
+└─────┬────────┘
+      │
+      ▼
+┌──────────────┐
+│ Actions      │
+│ Alert/Pump   │
+└──────────────┘
+
+
+---
+
+## Modules
+
+| Module             | Role                                     |
+|--------------------|------------------------------------------|
+| `sensor_input.py`  | Read sensors (ESP32 or simulated data)   |
+| `preprocessing.py` | Filter and normalize sensor data         |
+| `fire_detector.py` | Calculate risk score and make decisions  |
+| `actions.py`       | Trigger pump, buzzer, LEDs               |
+| `logger.py`        | Store data for analytics and calibration |
+
+---
+
+## Example Decision Logic
+
+```python
+risk_score = 0.5 * temp_score + 0.3 * smoke_score + 0.2 * ir_score
+if risk_score > critical_threshold:
+    trigger_alert()
+```
+## Deliverables
+- Diagram of AI decision architechture
+- Python module skeletons
+- Example simulation with sample sensor data to test risk score and decision logic
+
+## Final Goal
+- Provide a modular AI framework for fire detection 
+- Enable a quick testing with simulated or real sensor data
+- Integrate with ESP32 and the full project state machine
