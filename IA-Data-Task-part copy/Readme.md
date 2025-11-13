@@ -379,3 +379,38 @@ sensor_readings = [sensor_data]  # liste de lectures
 with open("sensor_log.json", "w") as f:
     json.dump(sensor_readings, f, indent=4)
 ```
+
+# Task 6: Module FireDetector (Prototype Python)
+
+## Objectif
+Créer un module Python réutilisable pour :
+- Lire les données JSON des capteurs,
+- Calculer un score de risque,
+- Déterminer l’action à prendre (alerte / pompe).
+
+## Utilisation
+```python
+from ai_brain.fire_detector import FireDetector
+
+detector = FireDetector()
+data = {
+    "timestamp": "2025-11-12T15:30:45",
+    "temperature": 55,
+    "smoke": 350,
+    "ir_flame": 1,
+    "humidity": 40.5
+}
+
+preprocessed = detector.preprocess(data)
+scores = detector.calc_score(preprocessed)
+action = detector.decide_action(scores)
+detector.log_result(scores, action)
+```
+
+## Structure du module:
+- `read_data(file_path)` : lire un fichier JSON
+- `preprocess(sensor_data)` : filtrer et normaliser
+- `calc_score(sensor_data)` : calculer score global
+- `decide_action(scores)` : déterminer l’action
+- `log_result(scores, action)` : afficher ou sauvegarder le résultat
+
