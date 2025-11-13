@@ -286,3 +286,96 @@ if risk_score > critical_threshold:
 - Provide a modular AI framework for fire detection 
 - Enable a quick testing with simulated or real sensor data
 - Integrate with ESP32 and the full project state machine
+
+# Task 6: Définir le format de données capteurs (JSON)
+
+## Objectif
+Définir un format standardisé pour toutes les données des capteurs afin que :  
+
+- Les lectures puissent être **stockées**,  
+- Les données puissent être **transmises entre modules** (ESP32 → FireDetector → logger → analytics),  
+- L’IA puisse **calculer le score de risque** efficacement.  
+
+Le format choisi est **JSON**, pour sa légèreté, sa lisibilité et sa compatibilité avec Python et ESP32.
+
+---
+
+## Pourquoi JSON ?
+- **Lisible par l’humain** et facilement manipulable en Python avec la librairie `json`.  
+- **Flexible** : permet d’ajouter de nouveaux champs (`humidity`, `location`, `sensor_id`).  
+- **Compatible IoT** : peut être transmis directement depuis l’ESP32 ou d’autres microcontrôleurs.
+
+---
+
+## Structure des données
+
+| Champ          | Description                                                     |
+|----------------|-----------------------------------------------------------------|
+| `timestamp`    | Date et heure ISO de la mesure                                  |
+| `temperature`  | Température en °C                                               |
+| `smoke`        | Niveau de fumée / gaz en ppm                                    |
+| `ir_flame`     | Détection de flamme IR (0 = pas de flamme, 1 = flamme détectée) |
+| `humidity`     | Optionnel : humidité en %                                       |
+| `location`     | Optionnel : emplacement du capteur ou nom du module             |
+
+---
+
+## Exemple de JSON
+
+### Lecture unique
+```json
+{
+  "timestamp": "2025-11-12T15:30:45",
+  "temperature": 25.3,
+  "smoke": 55.2,
+  "ir_flame": 0,
+  "humidity": 40.5,
+  "location": "robotic_arm_1"
+}
+
+```
+
+### Plusieurs lectures json
+
+```json
+[
+  {
+    "timestamp": "2025-11-12T15:30:45",
+    "temperature": 25.3,
+    "smoke": 55.2,
+    "ir_flame": 0
+  },
+  {
+    "timestamp": "2025-11-12T15:30:46",
+    "temperature": 25.4,
+    "smoke": 56.0,
+    "ir_flame": 0
+  }
+]
+```
+
+### Exemple Python pour generer Json
+
+```python 
+import json
+from datetime import datetime
+
+# Exemple de lecture simulée
+sensor_data = {
+    "timestamp": datetime.now().isoformat(),
+    "temperature": 25.3,
+    "smoke": 55.2,
+    "ir_flame": 0,
+    "humidity": 40.5,
+    "location": "robotic_arm_1"
+}
+
+# Sauvegarder une lecture unique
+with open("sensor_data.json", "w") as f:
+    json.dump(sensor_data, f, indent=4)
+
+# Pour plusieurs lectures
+sensor_readings = [sensor_data]  # liste de lectures
+with open("sensor_log.json", "w") as f:
+    json.dump(sensor_readings, f, indent=4)
+```
