@@ -603,3 +603,116 @@ Les données extraites dans cette étude sont utilisées pour :
 Cette tâche constitue donc une base de référence essentielle pour assurer que l’IA est alignée avec les réalités physiques des incendies selon différents contextes d’usage.
 
 ---
+
+# Task 12 – Prototype Système de Scoring avec Pondérations
+
+## Objectif
+Tester et choisir la meilleure configuration de pondérations pour le calcul du **score de risque incendie** dans le module `FireDetector`.  
+Les pondérations ajustent l’influence des mesures de **température** et **fumée** sur le score global afin d’optimiser la détection des incendies tout en minimisant les faux positifs.
+
+---
+
+## Méthodologie
+
+1. **Définir plusieurs configurations de pondérations** :
+   - `A_0.3_0.7` : Température 30%, Fumée 70%
+   - `B_0.4_0.6` : Température 40%, Fumée 60%
+   - `C_0.5_0.5` : Température 50%, Fumée 50%
+
+2. **Tester chaque configuration** sur un ensemble de données simulées (générées par `simulate_sensors.py`).
+
+3. **Mesurer les métriques clés** :
+   - Nombre d’alertes déclenchées (`fires_detected`)
+   - Score moyen global (`avg_score`)
+
+4. **Visualiser les résultats** :
+   - Comparer les pondérations à l’aide d’un graphique barres pour voir l’impact sur les scores et les alertes.
+
+---
+
+## Exemple de code
+
+```python
+from FireDetector import FireDetector
+from simulate_sensors import generate_sensor_data
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Générer données de test
+data = generate_sensor_data(50)
+
+# Configurations de pondérations à tester
+configs = {
+    "A_0.3_0.7": (0.3, 0.7),
+    "B_0.4_0.6": (0.4, 0.6),
+    "C_0.5_0.5": (0.5, 0.5),
+}
+
+results = []
+
+for name, (w_temp, w_smoke) in configs.items():
+    detector = FireDetector(weight_temp=w_temp, weight_smoke=w_smoke, weight_ir=0)
+    fire_count = 0
+    scores_list = []
+
+    for entry in data:
+        pre = detector.preprocess(entry)
+        scores = detector.calculate_fire_risk(pre)
+        if detector.detect_fire(scores) == "WARNING: start alarm":
+            fire_count += 1
+        scores_list.append(scores["global"])
+
+    avg_score = sum(scores_list) / len(scores_list)
+
+    results.append({
+        "config": name,
+        "fires_detected": fire_count,
+        "avg_score": avg_score
+    })
+
+# Visualisation
+df = pd.DataFrame(results)
+print(df)
+df.plot(x="config", y=["fires_detected", "avg_score"], kind="bar", title="Comparaison pondérations")
+plt.show()
+```
+
+# Task 13: Tester la détection avec données simulées
+
+## Objectif
+Tester le système FireDetector avec des scénarios simulés pour évaluer ses performances avant d’utiliser des capteurs réels.
+
+## Description
+- Génération de 100 scénarios simulés : 50 avec feu, 50 normaux.
+- Utilisation du module `simulate_sensors.py` pour créer des données réalistes.
+- Calcul des métriques :
+  - **Précision** (Precision)
+  - **Rappel** (Recall)
+  - **F1-score**
+  - Temps de traitement moyen et total
+
+## Méthodologie
+1. Charger le module `FireDetector`.
+2. Générer les scénarios simulés via `generate_balanced_data()`.
+3. Pour chaque scénario :
+   - Prétraiter les données (`preprocess`)
+   - Calculer le score de risque (`calculate_fire_risk`)
+   - Détecter un incendie (`detect_fire`)
+4. Comparer les résultats aux labels simulés pour calculer les métriques.
+
+## Résultats (exemple)
+| Métrique                | Valeur   |
+|-------------------------|----------|
+| Precision               | 1.0      |
+| Recall                  | 0.98     |
+| F1_score                | 0.9899   |
+| Avg_processing_time_s   | 0.000002 |
+| Total_processing_time_s | 0.00019  |
+
+**Interprétation :**
+- Tous les feux détectés sont corrects (aucun faux positif).
+- Seulement 2 % des feux simulés n’ont pas été détectés.
+- Traitement extrêmement rapide.
+
+## Conclusion
+Le FireDetector montre d’excellentes performances sur des données simulées, avec une détection précise et rapide. Prêt pour tests sur données réelles ou hardware.
