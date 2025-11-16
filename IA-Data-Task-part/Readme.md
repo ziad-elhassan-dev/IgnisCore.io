@@ -533,3 +533,30 @@ jupyter-lab
 
 ## Documentation
 Tous les résultats et plots sont enregistrés dans Notion pour suivi et analyse.
+
+# Task 10: Créer simulateur de données capteurs
+
+## Objectif
+Générer des données réalistes pour tester l'IA FireDetector sans utiliser le matériel réel.
+
+## Fonctionnalités
+- Température : 20–40°C avec bruit aléatoire
+- Fumée : 200–1500 avec bruit
+- Proximité : 10–200 cm
+- IR Flame : 0 ou 1
+- Timestamp : suivi temporel
+
+## Utilisation
+1. Exécuter le script `simulate_sensors.py` pour générer un fichier JSON avec les mesures simulées.
+2. Charger les données simulées dans `FireDetector` pour tester l'algorithme.
+3. Analyser les scores de risque et actions générées.
+
+## Exemple de sortie
+```json
+{
+  "temperature": 32.5,
+  "smoke": 450,
+  "proximity": 120.4,
+  "ir_flame": 0,
+  "timestamp": "2025-11-16T18:25:43.511234"
+}

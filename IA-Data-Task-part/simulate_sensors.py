@@ -2,7 +2,7 @@ import random
 import json
 from datetime import datetime, timedelta
 
-def generate_sensor_data(num_samlples=50):
+def generate_sensor_data(num_samples=50):
     """
     Génère des données simulées pour les capteurs.
     
@@ -13,12 +13,13 @@ def generate_sensor_data(num_samlples=50):
         list: liste de dictionnaires représentant les mesures.
     """
     data = []
-    timestamp = datetime.now
+    timestamp = datetime.now()
+    
     for _ in range(num_samples):
         sample = {
             "temperature": round(random.uniform(20,40) + random.gauss(0, 1), 2),
             "smoke": int(random.uniform(200, 1500) + random.gauss(0,50)),
-            "proximity": round(random.unifrom(10,200), 1),
+            "proximity": round(random.uniform(10,200), 1),
             "ir_flame": random.choice([0,1]),
             "timestamp": timestamp.isoformat()
         }
