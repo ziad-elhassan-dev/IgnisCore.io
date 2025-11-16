@@ -560,3 +560,46 @@ Générer des données réalistes pour tester l'IA FireDetector sans utiliser le
   "ir_flame": 0,
   "timestamp": "2025-11-16T18:25:43.511234"
 }
+```
+
+# Task 11: Étude des Patterns de Propagation du Feu
+
+## 🎯 Objectif
+
+L'objectif principal de cette tâche était de réaliser une recherche documentaire sur les mécanismes de propagation du feu dans trois environnements : 
+- Espaces intérieurs (maisons, bâtiments)
+- Environnements extérieurs (forêts, végétation)
+- Véhicules (voitures, camions)
+
+Cette étude visait à mieux comprendre les dynamiques de chaleur, de fumée, de vitesse de propagation, afin de guider le développement des algorithmes de détection et de décision de l’IA.
+
+---
+
+## 📄 Résultat
+
+Un document PDF synthétique d’une page a été rédigé à partir de sources scientifiques et techniques. Il présente de façon structurée :
+- La vitesse typique de propagation du feu
+- Les profils de température et de fumée
+- Les implications pour la détection précoce
+
+---
+
+## 📁 Emplacement du fichier
+
+Le document est disponible ici :  
+`docs\Modèles de propagation du feu.pdf`
+
+---
+
+## 🧠 Utilisation dans le projet
+
+Les données extraites dans cette étude sont utilisées pour :
+
+- Calibrer les seuils de détection de température, fumée et flamme (Task 3)
+- Concevoir l’architecture de décision de l’IA (Task 4)
+- Simuler des scénarios réalistes pour entraînement et tests (Task 10)
+- Définir des métriques de performance réalistes pour la détection (Task 9)
+
+Cette tâche constitue donc une base de référence essentielle pour assurer que l’IA est alignée avec les réalités physiques des incendies selon différents contextes d’usage.
+
+---
