@@ -1,5 +1,7 @@
 # Ignore Python virtual environment
 venv/
+env_jupyter
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -10,3 +12,6 @@ __pycache__/
 
 # OS files
 .DS_Store 
+
+#dk
+.conda

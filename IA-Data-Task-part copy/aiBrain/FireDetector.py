@@ -19,7 +19,7 @@ class FireDetector:
     def read_data(self, file_path):
         "To read a json file with sensor data"
         with open(file_path, "r") as f:
-            return json.load
+            return json.load(f)
         
     def preprocess(self, sensor_data):
         "Normalisation or sorting if necessary"
@@ -44,7 +44,7 @@ class FireDetector:
                 "smoke" : smoke_score, 
                 "ir": ir_score, 
                 "global" : global_score, 
-                "proximity" : sensor_data.get("proximity, None")
+                "proximity" : sensor_data.get("proximity", None)
                 }
     
     def detect_fire(self, scores):
