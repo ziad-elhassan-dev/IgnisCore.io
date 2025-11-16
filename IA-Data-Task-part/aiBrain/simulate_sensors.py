@@ -2,29 +2,37 @@ import random
 import json
 from datetime import datetime, timedelta
 
-def generate_sensor_data(num_samples=50):
-    """
-    Génère des données simulées pour les capteurs.
-    
-    Args:
-        num_samples (int): nombre de mesures à générer.
-        
-    Returns:
-        list: liste de dictionnaires représentant les mesures.
-    """
+def generate_sensor_data(n=100):
     data = []
     timestamp = datetime.now()
-    
-    for _ in range(num_samples):
-        sample = {
-            "temperature": round(random.uniform(20,40) + random.gauss(0, 1), 2),
-            "smoke": int(random.uniform(200, 1500) + random.gauss(0,50)),
-            "proximity": round(random.uniform(10,200), 1),
-            "ir_flame": random.choice([0,1]),
-            "timestamp": timestamp.isoformat()
-        }
-        data.append(sample)
+
+    for _ in range(n):
         timestamp += timedelta(seconds=1)
+
+        # Température : conditions normales + pics incendie
+        base_temp = random.uniform(20, 45)
+        fire_temp = random.uniform(60, 120)
+        temperature = fire_temp if random.random() < 0.15 else base_temp  # 15% chance fire
+
+        # Fumée : conditions normales + fumée forte
+        base_smk = random.uniform(50, 250)
+        fire_smk = random.uniform(400, 2000)
+        smoke = fire_smk if random.random() < 0.20 else base_smk  # 20% chance fire
+
+        # Capteur IR : maintenant + nuancé + pas trop dominant
+        ir_flame = 1 if random.random() < 0.10 else 0  # 10% chance of flame detection
+
+        # Distance
+        proximity = random.uniform(10, 200)
+
+        data.append({
+            "timestamp": timestamp.isoformat(),
+            "temperature": temperature,
+            "smoke": smoke,
+            "ir_flame": ir_flame,
+            "proximity": proximity
+        })
+
     return data
 
 def save_to_json(data, file_name="simulated_fire_data.json"):
