@@ -402,8 +402,8 @@ data = {
 }
 
 preprocessed = detector.preprocess(data)
-scores = detector.calc_score(preprocessed)
-action = detector.decide_action(scores)
+scores = detector.calculate_fire_risk(preprocessed)
+action = detector.detect_fire(scores)
 detector.log_result(scores, action)
 ```
 

@@ -25,7 +25,7 @@ class FireDetector:
         "Normalisation or sorting if necessary"
         return sensor_data
     
-    def calc_score(self, sensor_data):
+    def calculate_fire_risk(self, sensor_data):
         "Calculates a score from sensor data"
         def score(value, threshold):
             return min(max((value-threshold)/threshold, 0), 1)
@@ -38,7 +38,7 @@ class FireDetector:
         
         return {"temp" : temp_score, "smoke" : smoke_score, "ir": ir_score, "global" : global_score}
     
-    def decide_action(self, scores):
+    def detect_fire(self, scores):
         #decides action based on global score
         if scores["global"] >= self.alert_thresh:
             return "WARNING: start alarm"
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     }
     
     preprocessed = detector.preprocess(data)
-    scores = detector.calc_score(preprocessed)
-    action = detector.decide_action(scores)
+    scores = detector.calculate_fire_risk(preprocessed)
+    action = detector.detect_fire(scores)
     detector.log_result(scores, action)       
     
