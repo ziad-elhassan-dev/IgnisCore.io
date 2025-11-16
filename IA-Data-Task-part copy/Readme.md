@@ -477,3 +477,31 @@ jupyter-lab
 1. `FireDetector_Experiment.ipynb` — Notebook d’expérimentation.
 2. `simulated_fire.json` — Fichier JSON de test.
 3. Graphiques et notes directement documentées dans le notebook.
+
+# Task 8 — Algorithmes de fusion capteurs
+
+## Objectif
+- Étudier et documenter des méthodes pour combiner les données provenant de plusieurs capteurs (température, fumée, IR, proximité).
+- Obtenir une estimation plus fiable du risque d'incendie.
+
+## Méthodes étudiées
+
+### 1. Filtre de Kalman
+- Filtre récursif qui prend en compte l’incertitude des capteurs.
+- Permet de prédire l’évolution des mesures et de filtrer le bruit.
+- Bibliothèques Python : `filterpy`, `numpy`.
+
+### 2. Moyenne mobile pondérée (Weighted Moving Average)
+- Combine les mesures récentes avec des poids décroissants.
+- Simple à implémenter et rapide.
+- Sensible au choix des poids.
+
+### 3. Lissage exponentiel (Exponential Smoothing)
+- Poids exponentiellement décroissants pour les anciennes mesures.
+- Réagit rapidement aux tendances récentes.
+- Paramètre clé : alpha (facteur de lissage).
+
+## Notes
+- Ces méthodes serviront de base pour le Sprint 2.
+- Chaque approche peut être testée sur des données simulées ou réelles.
+- Comparer les performances pour choisir la meilleure fusion pour `FireDetector`.
