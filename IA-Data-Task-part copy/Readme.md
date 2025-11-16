@@ -417,3 +417,63 @@ detector.log_result(scores, action)
 - `decide_action(scores)` : déterminer l’action
 - `log_result(scores, action)` : afficher ou sauvegarder le résultat
 
+# Task 7 — Notebooks Jupyter pour expérimentations
+
+## Objectif
+- Tester et expérimenter le module `FireDetector`.
+- Charger et prétraiter des données JSON simulées (ou réelles venant de l’ESP32).
+- Calculer le score de risque de feu et détecter un incendie.
+- Visualiser les scores avec des graphiques.
+- Documenter les résultats et observations directement dans le notebook.
+
+---
+
+## Installation et setup
+
+1. Activer votre environnement virtuel (venv) :
+
+```bash
+source env_jupyter/bin/activate   # Linux / WSL
+# Windows CMD: env_jupyter\Scripts\activate.bat
+# Windows PowerShell: env_jupyter\Scripts\Activate.ps1
+```
+2. Installer Jupyter et les bibliotheque necessaires :
+
+```bash
+pip install notebook matplotlib jupyterlab
+```
+
+3. Lancer Jupyter Notebook ou JupyterLab :
+
+```bash
+jupyter notebook
+# ou
+jupyter-lab
+```
+4. Le navigateur s'ouvrira automatiquement avec l'interface Jupyter.
+
+## Structure recommandee du notebook
+- Nom suggere : `FireDetector_Experiments.ipynb`
+
+### Sections principales:
+1. Imports et Setup
+2. Chargement des donnees simulees
+3. Calcul des scores et Detection
+4. Visualisation
+5. Experimentations et Notes
+
+## Fichier JSON simule recommande
+`simulated_fire.jason`:
+```json
+{
+    "timestamp": "2025-11-16T18:00:00",
+    "temperature": 55,
+    "smoke": 350,
+    "ir_flame": 1,
+    "proximity": 20
+}
+```
+## Livrables pour Task 7
+1. `FireDetector_Experiment.ipynb` — Notebook d’expérimentation.
+2. `simulated_fire.json` — Fichier JSON de test.
+3. Graphiques et notes directement documentées dans le notebook.
