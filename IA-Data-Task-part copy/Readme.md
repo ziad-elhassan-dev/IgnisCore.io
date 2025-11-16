@@ -505,3 +505,31 @@ jupyter-lab
 - Ces méthodes serviront de base pour le Sprint 2.
 - Chaque approche peut être testée sur des données simulées ou réelles.
 - Comparer les performances pour choisir la meilleure fusion pour `FireDetector`.
+
+# Task 9: Définir métriques de performance IA
+
+## Objectif
+Évaluer la performance du module FireDetector afin de garantir:
+- Détection fiable des incendies
+- Temps de réponse rapide
+- Minimisation des fausses alertes
+
+## Métriques définies
+
+| Metric                   | Description                            | Target        |
+|--------------------------|----------------------------------------|---------------|
+| Précision                | Correct fire/no-fire detections        | >95%          |
+| Faux positifs            | Alerts when no fire                    | <10%          |
+| Latence décision         | Temps de décision AI                   | <100ms        |
+| Temps réponse total      | End-to-end action                      | <5s           |
+| Score de risque          | Corrélation avec incendies réels       | ≥0.9          |
+| Robustesse bruit capteur | AI performance with noisy/missing data | Accuracy >90% |
+
+## Méthode de mesure
+1. Génération de données simulées pour différents scénarios
+2. Comparaison avec les labels connus (fire/no-fire)
+3. Mesure du temps de latence et du temps de réponse total
+4. Tests de robustesse avec données bruitées ou manquantes
+
+## Documentation
+Tous les résultats et plots sont enregistrés dans Notion pour suivi et analyse.
