@@ -23,6 +23,10 @@ class FireDetector:
         
     def preprocess(self, sensor_data):
         "Normalisation or sorting if necessary"
+        keys = ["temperature", "smoke", "ir_flame", "proximity", "timestamp"]
+        for k in keys:
+            if k not in sensor_data:
+                sensor_data[k] = 0  # valeur par défaut si manquante
         return sensor_data
     
     def calculate_fire_risk(self, sensor_data):
@@ -36,7 +40,12 @@ class FireDetector:
         
         global_score = (temp_score * self.weight_temp) + (smoke_score * self.weight_smoke) + (ir_score * self.weight_ir)
         
-        return {"temp" : temp_score, "smoke" : smoke_score, "ir": ir_score, "global" : global_score}
+        return {"temp" : temp_score, 
+                "smoke" : smoke_score, 
+                "ir": ir_score, 
+                "global" : global_score, 
+                "proximity" : sensor_data.get("proximity, None")
+                }
     
     def detect_fire(self, scores):
         #decides action based on global score

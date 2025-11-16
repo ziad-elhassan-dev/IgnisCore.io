@@ -329,6 +329,7 @@ Le format choisi est **JSON**, pour sa légèreté, sa lisibilité et sa compati
   "temperature": 25.3,
   "smoke": 55.2,
   "ir_flame": 0,
+  "proximity" : 220.5,
   "humidity": 40.5,
   "location": "robotic_arm_1"
 }
@@ -343,13 +344,15 @@ Le format choisi est **JSON**, pour sa légèreté, sa lisibilité et sa compati
     "timestamp": "2025-11-12T15:30:45",
     "temperature": 25.3,
     "smoke": 55.2,
-    "ir_flame": 0
+    "ir_flame": 0,
+    "proximity" : 120.5
   },
   {
     "timestamp": "2025-11-12T15:30:46",
     "temperature": 25.4,
     "smoke": 56.0,
-    "ir_flame": 0
+    "ir_flame": 0,
+    "proximity" : 20.5
   }
 ]
 ```
