@@ -1,5 +1,5 @@
-import numpy as np
-import matplotlib.pyplot as plt
+import numpy as np # type: ignore
+import matplotlib.pyplot as plt # type: ignore
 
 data = [50,52,53,55,54]
 weights = [0.5, 0.3, 0.2] # poids pour les 3 dernières mesures

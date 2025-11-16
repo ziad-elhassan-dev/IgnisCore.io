@@ -1,6 +1,6 @@
-from filterpy.kalman import KalmanFilter
-import numpy as np
-import matplotlib.pyplot as plt
+from filterpy.kalman import KalmanFilter # type: ignore
+import numpy as np # type: ignore
+import matplotlib.pyplot as plt # type: ignore
 
 kf = KalmanFilter(dim_x=1, dim_z=1)
 kf.x = np.array([[0.]]) #etat inital

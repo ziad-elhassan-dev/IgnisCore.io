@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt # type: ignore
 
 data = [50, 52, 53, 55, 54]
 alpha = 0.3
