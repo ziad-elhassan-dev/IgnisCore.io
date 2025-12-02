@@ -1,7 +1,7 @@
 from FireDetector import FireDetector
 from simulate_sensors import generate_sensor_data
-import pandas as pd
-import matplotlib.pyplot as plt
+import pandas as pd # type: ignore
+import matplotlib.pyplot as plt # type: ignore
 
 # Générer données de test
 data = generate_sensor_data(50)
