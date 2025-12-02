@@ -15,3 +15,7 @@ __pycache__/
 
 #dk
 .conda
+.sh
+Miniconda3
+Miniconda3-latest-Linux-x86_64.sh
+

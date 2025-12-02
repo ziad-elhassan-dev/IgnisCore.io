@@ -1,0 +1,7 @@
+{
+    "timestamp": "2025-11-16T18:00:00",
+    "temperature": 55,
+    "smoke": 350,
+    "ir_flame": 1,
+    "proximity": 20
+}
