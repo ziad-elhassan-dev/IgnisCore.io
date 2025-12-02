@@ -433,7 +433,7 @@ detector.log_result(scores, action)
 1. Activer votre environnement virtuel (venv) :
 
 ```bash
-source env_jupyter/bin/activate   # Linux / WSL
+source ~/venv/bin/activate   # Linux / WSL
 # Windows CMD: env_jupyter\Scripts\activate.bat
 # Windows PowerShell: env_jupyter\Scripts\Activate.ps1
 ```
@@ -716,3 +716,27 @@ Tester le système FireDetector avec des scénarios simulés pour évaluer ses p
 
 ## Conclusion
 Le FireDetector montre d’excellentes performances sur des données simulées, avec une détection précise et rapide. Prêt pour tests sur données réelles ou hardware.
+
+
+# Task 14: Document Fire Detection Algorithm v1
+
+## Objective
+Create a technical document detailing the first version of the fire detection decision algorithm, including:
+- Pseudocode
+- Example scenarios
+- Chosen thresholds and weights
+- Justifications for parameter choices
+
+## Files
+- `Decision_Algorithm_v1.md` : full technical documentation.
+- `README_Task14.md` : this summary file.
+
+## Instructions
+- Upload `Decision_Algorithm_v1.md` to the Notion project under documentation.
+- Refer to it for understanding the decision logic and parameter settings.
+- Update it in future versions (v2, v3) if thresholds or weights are adjusted.
+
+## Notes
+- v1 thresholds and weights were derived from experimental tests.
+- Algorithm combines temperature, smoke, and IR sensor readings into a global score.
+- Decision threshold is set to 0.5 for balanced detection.
