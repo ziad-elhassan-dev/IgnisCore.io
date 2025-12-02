@@ -66,6 +66,43 @@ def generate_balanced_data(n_fire=50, n_normal=50):
     random.shuffle(data)
     return data
 
+def generate_rapid_fire_scenarios(n=100):
+    """Generate 50 normal + 50 fire/rise scenarios."""
+    data = []
+    timestamp = datetime.now()
+
+    # Normal scenarios
+    for _ in range(n//2):
+        timestamp += timedelta(seconds=1)
+        data.append({
+            "timestamp": timestamp.isoformat(),
+            "temperature": random.uniform(20, 45),
+            "smoke": random.uniform(50, 250),
+            "ir_flame": 0,
+            "proximity": random.uniform(10, 200)
+        })
+    
+    # Fire scenarios (rapid rise)
+    temp_prev = 30
+    smoke_prev = 100
+    for _ in range(n//2):
+        timestamp += timedelta(seconds=1)
+        # Simulate rapid rise
+        temp = temp_prev + random.uniform(10, 30)
+        smoke = smoke_prev + random.uniform(200, 500)
+        data.append({
+            "timestamp": timestamp.isoformat(),
+            "temperature": temp,
+            "smoke": smoke,
+            "ir_flame": 1,
+            "proximity": random.uniform(10, 200)
+        })
+        temp_prev = temp
+        smoke_prev = smoke
+
+    random.shuffle(data)
+    return data
+
 
 def save_to_json(data, file_name="simulated_fire_data.json"):
     """
@@ -88,9 +125,12 @@ def save_to_json(data, file_name="simulated_fire_data.json"):
     print(f"Fichier de données simulées créé: {file_path}")
     
 if __name__ == "__main__":
-    simulated_data = generate_sensor_data(100)
-    save_to_json(simulated_data, "simulated_fire_random.json")
-    simulated_balanced_data = generate_balanced_data(50, 50)
-    save_to_json(simulated_balanced_data, "simulated_fire_balanced.json")
+    # simulated_data = generate_sensor_data(100)
+    # save_to_json(simulated_data, "simulated_fire_random.json")
+    # simulated_balanced_data = generate_balanced_data(50, 50)
+    # save_to_json(simulated_balanced_data, "simulated_fire_balanced.json")
+    simulated_rapid_fire = generate_rapid_fire_scenarios(100)
+    save_to_json(simulated_rapid_fire, "simulated_rapid_fire.json")
+    
     
     
