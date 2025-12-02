@@ -7,8 +7,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
+
 
 # OS files
 .DS_Store 
