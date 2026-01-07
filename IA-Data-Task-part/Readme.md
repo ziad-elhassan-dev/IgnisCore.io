@@ -740,3 +740,106 @@ Create a technical document detailing the first version of the fire detection de
 - v1 thresholds and weights were derived from experimental tests.
 - Algorithm combines temperature, smoke, and IR sensor readings into a global score.
 - Decision threshold is set to 0.5 for balanced detection.
+
+
+# Task 15: Prototyper détection de tendance (montée rapide)
+
+## Description 
+Ce module implémente un algorithme de détection d’incendie basé sur :
+- une analyse globale du risque (temperature, fumee, flamme IR),
+- une detection de montee rapide (Rapid Rise Detection),
+- des seuils parametrables,
+- un systeme de score pondere,
+- une gestion d'historique pour calculer les variations entre deux mesures.
+
+## Fonctionnement de l'algorithme 
+- Pretraitement
+  1. Vérifie les clés nécessaires : `temperature`, `smoke`, `ir_flame`, `proximity`, `timestamp`.
+  2. Remplace les valeurs manquantes par 0.
+
+- Score global
+Chaque capteur contribue a un score entre 0 et 1.
+
+Formule:
+
+```bash
+GlobalScoreGlobalScore = 0.4 * TempScore + 0.4 * SmokeScore + 0.2 * IRScore
+```
+IR >= seuil ---> IRScore = 1.
+Score final >= 0.5 ---> feu potentiel.
+
+- Détection de montée rapide (Rapid Rise)
+Compare les valeurs actuelles avec les dernieres valeurs recues
+
+seuils par defaut: 
+```bash
+ΔTempérature ≥ 10°C
+ΔFumée ≥ 200ppm
+```
+Si l’un des deux dépasse → alarme instantanée.
+
+- Decision finale
+L'alarme se declanche si:
+  1. `global score >= alert_thresh`
+  OU
+  2. montee rapide detectee
+Sinon: "Nothing to do"
+
+## Tests et Resultats
+### Code de test F1/Precision/Recall
+
+```python
+from sklearn.metrics import precision_score, recall_score, f1_score
+
+y_true = [1]*50 + [0]*50
+y_pred = [(1 if r["action"]=="WARNING: start alarm" else 0) for r in results]
+
+precision = precision_score(y_true, y_pred)
+recall = recall_score(y_true, y_pred)
+f1 = f1_score(y_true, y_pred)
+
+print(f"Precision: {precision:.2f}, Recall: {recall:.2f}, F1: {f1:.2f}")
+```
+
+Resultats actuels
+```bash
+Precision: 0.47
+Recall: 0.56
+F1: 0.51
+```
+- Interpretation 
+  . Le prototype detecte plus d'un incendie sur deux (Recall).
+  . Quelques faux positifs (Precision faible).
+  . Correct pour un `prototype non calibre.
+  . S'ameliorera avec donnees capteurs reels.
+- Points forts 
+  . Detection montee rapide fonctionnelle.
+  . Architecture claire et modulaire.
+  . Parametres facilement ajustables.
+  . Basee sur ponderation (donc explicable).
+
+- Limitations et Ameliorations prevues
+  . Ajouter filtrage des signaux (moyenne glissante).
+  . Calibration reelle sur ESP32.
+  . Detection IR plus robuste.
+  . Ajouter niveaux d'alerte (INFO / WARNING / CRITICAL)
+  . Ajouter Δ/s (variation par seconde).
+  . Historique multi-mesures (actuellement deux points).
+
+## Exemple d'utilisation
+```python
+from aiBrain.FireDetector import FireDetector
+import json
+
+detector = FireDetector()
+
+with open("data/simulated_fire.json") as f:
+    raw = json.load(f)
+
+data = detector.preprocess(raw)
+rapid = detector.detect_rapid_rise(data)
+scores = detector.calculate_fire_risk(data)
+
+action = detector.detect_fire(scores, rapid)
+detector.log_result(scores, action)
+```
