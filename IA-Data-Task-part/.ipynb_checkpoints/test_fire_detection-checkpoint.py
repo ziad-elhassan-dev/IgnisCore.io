@@ -2,8 +2,8 @@ import json
 import time
 import matplotlib.pyplot as plt # type: ignore
 import pandas as pd # type: ignore
-from aiBrain.FireDetector import FireDetector
-from aiBrain.simulate_sensors import generate_balanced_data, save_to_json
+from aiBrain.fire_detection.FireDetector import FireDetector
+from aiBrain.fire_detection.simulate_sensors import generate_balanced_data, save_to_json
 from sklearn.metrics import precision_score, recall_score, f1_score # type: ignore
 
 # -------------------------------

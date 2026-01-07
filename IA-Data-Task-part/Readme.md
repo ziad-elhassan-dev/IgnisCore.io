@@ -919,3 +919,48 @@ path = a_star(map_grid, start_pos, end_pos)
 if path:
     print(f"Le premier pas est : {path[1]}") # Le robot passe de (4,0) à (3,0)
 ```
+
+# Task 17: Développement du "Simulator Advisor"
+
+## Description
+
+Ce module simule l'intelligence côté serveur qui guide le robot YBOOST pendant sa phase de patrouille (PATROL dans la Tâche 19). Le service analyse les données historiques et les zones de la carte pour recommander une cible d'inspection.
+
+L'objectif est de s'assurer que le robot explore l'environnement de manière intelligente plutôt que de suivre un chemin aléatoire ou prédéfini.
+
+## Fonctionnement de l'algorithme : Heuristiques de Priorité
+
+Chaque zone de la carte reçoit un Score de Priorité basé sur deux heuristiques principales :
+
+1. Urgence Temporelle (Poids 60%) : Plus le temps écoulé depuis la dernière inspection de la zone est important, plus la zone est prioritaire. Cela garantit une couverture complète de l'environnement.
+
+2. Risque Historique (Poids 40%) : Les zones où les capteurs ont historiquement signalé des pics (score de risque élevé) reçoivent un bonus de priorité, les rendant plus susceptibles d'être visitées en premier.
+
+$$\mathbf{Score_{Priorité}} = (0.6 \times \mathbf{Score_{Temps}}) + (0.4 \times \mathbf{Score_{Risque}})$$
+
+Critère de Décision (Tie-breaker) : Si deux zones ont le même score de priorité élevé, l'Advisor choisit celle qui est la plus proche de la position actuelle du robot (utilisant la Distance de Manhattan).
+
+## Entrée et Sortie
+
+- Entrée : Position actuelle du robot (row, col), état de l'historique de toutes les zones (temps de la dernière visite, score de risque moyen).
+
+- Sortie : Coordonnées (row, col) de la zone recommandée par l'Advisor. (Ces coordonnées sont l'entrée de l'algorithme A* de la Tâche 16).
+
+## Exemple d'Utilisation
+
+```python
+from aiBrain.advisor_service import AdvisorService
+
+advisor = AdvisorService()
+current_pos = (4, 0) # Robot en C1
+
+# L'Advisor calcule et envoie la cible
+target, zone = advisor.get_next_inspection_target(current_pos)
+
+print(f"L'Advisor recommande au robot de se rendre à {target} (Zone {zone})")
+# Ces coordonnées sont ensuite utilisées par le module T16 pour calculer le chemin.
+
+# Simulation de l'inspection (mis à jour par T19)
+advisor.update_zone_data(zone, 0.1)
+```
+
