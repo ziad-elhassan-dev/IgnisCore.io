@@ -843,3 +843,32 @@ scores = detector.calculate_fire_risk(data)
 action = detector.detect_fire(scores, rapid)
 detector.log_result(scores, action)
 ```
+
+# Task 16: Implémentation de l'Algorithme A*
+
+## Description
+Ce module implémente l'algorithme de recherche de chemin A* (A-Star), essentiel pour la fonction de Pathfinding du robot. Il permet au robot de:
+
+- Calculer le trajet le plus court entre sa position actuelle et la cible fournie par l'Advisor (T17).
+- Éviter intelligemment les obstacles fixes ou connus sur la carte (murs, meubles, zones interdites).
+
+## Fonctionnement de l'algorithme
+
+L'algorithme A* est un algorithme de recherche de graphe basé sur une file de priorité (implémentée via heapq) qui garantit l'optimalité du chemin trouvé.
+
+### Composants Clés
+Chaque nœud (cellule de la grille) est évalué par trois coûts :
+1. g (Coût réel) : Le coût cumulé (nombre de pas) pour aller du point de départ au nœud actuel.
+2. h (Heuristique) : Le coût estimé pour aller du nœud actuel au point d'arrivée (utilisant la Distance de Manhattan dans cette implémentation).
+3. f (Coût total) : f = g + h. Le nœud avec le plus petit $f$ est exploré en priorité.
+
+### Entrée et Sortie
+- Entrée `(maze)` : Une carte 2D (liste de listes) où `0` représente un espace libre (carrossable) et `1` représente un obstacle.
+- Entrée (start, end) : Tuples (ligne, colonne) pour le début et la fin.
+- Sortie : Une liste ordonnée de tuples (ligne, colonne) représentant le chemin optimal.
+
+## Détails Techniques et Code
+
+### Heuristique
+L'heuristique utilisée est la Distance de Manhattan, qui est adaptée aux mouvements horizontaux et verticaux (4 directions) sur la grille.
+ `$$\mathbf{h} = |\mathbf{x_{current}} - \mathbf{x_{end}}| + |\mathbf{y_{current}} - \mathbf{y_{end}}|$$`
