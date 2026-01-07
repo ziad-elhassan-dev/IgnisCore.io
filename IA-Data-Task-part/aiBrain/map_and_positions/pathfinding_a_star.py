@@ -1,6 +1,7 @@
 # Fichier : pathfinding_a_star.py
 
 import heapq
+import random
 
 class Node:
     """ Représente une cellule sur la grille pour l'algorithme A*. """
@@ -22,103 +23,122 @@ class Node:
 
 def a_star(maze, start, end):
     """
-    Algorithme A* pour trouver le chemin le plus court.
-
-    :param maze: Carte 2D (0=libre, 1=obstacle).
-    :param start: Tuple (row, col) du point de départ.
-    :param end: Tuple (row, col) du point d'arrivée.
-    :return: Liste des coordonnées du chemin, ou None si aucun chemin n'est trouvé.
+    Algorithme A* optimisé pour trouver le chemin le plus court.
+    Utilise un dictionnaire (open_set) en plus du tas (open_list)
+    pour garantir une complexité temporelle proche de O(|V| log |V|).
     """
-    # Création des nœuds de départ et d'arrivée
     start_node = Node(None, start)
     end_node = Node(None, end)
     
-    # Initialisation des listes
-    open_list = [] # Liste des nœuds à explorer (Priority Queue/Heap)
-    closed_list = set() # Ensemble des nœuds déjà explorés
+    # 1. Structures de données optimisées:
+    open_list = []      # Tas binaire pour la priorité O(log k)
+    open_set = {start: start_node} # Dictionnaire pour la vérification rapide O(1)
+    closed_list = set() # Ensemble pour la vérification rapide O(1)
 
-    # Ajout du nœud de départ à la liste ouverte
     heapq.heappush(open_list, start_node)
 
-    # Limites de la grille
     rows, cols = len(maze), len(maze[0])
-    
-    # Directions possibles (haut, bas, gauche, droite, et diagonales - optionnel)
-    # Pour un robot simple, on peut commencer par 4 directions (pas de diagonales)
-    move_directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # Ouest, Est, Nord, Sud
+    move_directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     while open_list:
-        # Récupère le nœud courant avec le plus petit coût f (Priorité)
         current_node = heapq.heappop(open_list)
+        
+        # S'assurer que le nœud n'est pas un duplicata obsolète (causé par la réinsertion)
+        if current_node.position not in open_set or current_node != open_set[current_node.position]:
+            # Ceci est un nœud obsolète avec un F plus élevé que celui dans open_set. On l'ignore.
+            continue
+            
+        del open_set[current_node.position] # Suppression rapide du dictionnaire O(1)
         closed_list.add(current_node.position)
 
-        # Vérification si le but est atteint
         if current_node == end_node:
             path = []
             current = current_node
             while current is not None:
                 path.append(current.position)
                 current = current.parent
-            return path[::-1] # Inverse le chemin pour aller du début à la fin
+            return path[::-1]
 
-        # Exploration des voisins
         for direction in move_directions:
             node_position = (current_node.position[0] + direction[0], 
                              current_node.position[1] + direction[1])
 
-            # Vérification si le voisin est dans la grille
-            if not (0 <= node_position[0] < rows and 0 <= node_position[1] < cols):
-                continue
+            if not (0 <= node_position[0] < rows and 0 <= node_position[1] < cols): continue
+            if maze[node_position[0]][node_position[1]] != 0: continue
+            if node_position in closed_list: continue
 
-            # Vérification si le voisin est un obstacle (maze[r][c] == 1)
-            if maze[node_position[0]][node_position[1]] != 0:
-                continue
-            
-            # Vérification si le voisin a déjà été exploré
-            if node_position in closed_list:
-                continue
+            # Calcul du coût G (distance réelle) pour le voisin
+            tentative_g = current_node.g + 1
 
-            # Création du nouveau nœud voisin
-            new_node = Node(current_node, node_position)
-
-            # Calcul des coûts G, H et F
-            # G = Coût du parent + Coût pour atteindre ce nœud (ici, 1 pour chaque pas)
-            new_node.g = current_node.g + 1
+            # 2. Vérification rapide en O(1)
+            if node_position in open_set:
+                neighbor_node = open_set[node_position]
+                if tentative_g >= neighbor_node.g:
+                    continue # Le chemin existant est meilleur
             
-            # H = Heuristique (Distance de Manhattan)
-            new_node.h = abs(new_node.position[0] - end_node.position[0]) + abs(new_node.position[1] - end_node.position[1])
-            
-            # F = G + H
-            new_node.f = new_node.g + new_node.h
-
-            # Vérification si le nœud est déjà dans la liste ouverte avec un meilleur chemin
-            # Cette vérification est simplifiée par l'utilisation de la Priority Queue.
-            
-            # Ajout du voisin à la liste ouverte (s'il n'est pas déjà présent)
-            is_in_open = False
-            for open_node in open_list:
-                if new_node == open_node and new_node.g >= open_node.g:
-                    is_in_open = True
-                    break
-            
-            if not is_in_open:
+                # Mise à jour: On a trouvé un meilleur chemin
+                neighbor_node.parent = current_node
+                neighbor_node.g = tentative_g
+                neighbor_node.f = neighbor_node.g + neighbor_node.h
+                
+                # Réinsertion dans le tas (créant un duplicata, mais on traite l'ancien au pop)
+                heapq.heappush(open_list, neighbor_node)
+            else:
+                # 3. Nouveau nœud, calcul complet et insertion
+                new_node = Node(current_node, node_position)
+                new_node.g = tentative_g
+                new_node.h = abs(new_node.position[0] - end_node.position[0]) + abs(new_node.position[1] - end_node.position[1])
+                new_node.f = new_node.g + new_node.h
+                
                 heapq.heappush(open_list, new_node)
+                open_set[node_position] = new_node # Ajout au dictionnaire O(1)
 
-    return None # Aucun chemin trouvé
+    return None
+
+def generate_large_maze(rows, cols, wall_percentage=0.1):
+    """Génère une grande grille avec des obstacles aléatoires et des murs centraux."""
+    
+    # 1. Grille initiale vide (tout à 0)
+    maze = [[0 for _ in range(cols)] for _ in range(rows)]
+    
+    # 2. Ajout d'obstacles aléatoires (pour 10% de la carte)
+    for r in range(rows):
+        for c in range(cols):
+            if random.random() < wall_percentage:
+                maze[r][c] = 1
+
+    # 3. Ajout d'un grand mur central pour garantir un long chemin
+    
+    # Coordonnées du centre
+    center_r = rows // 2
+    center_c = cols // 2
+    
+    # Mur vertical épais au centre
+    wall_start_r = center_r - 50
+    wall_end_r = center_r + 50
+    wall_col_start = center_c - 2
+    wall_col_end = center_c + 2
+
+    for r in range(wall_start_r, wall_end_r):
+        for c in range(wall_col_start, wall_col_end):
+            if 0 <= r < rows and 0 <= c < cols:
+                maze[r][c] = 1
+
+    return maze
 
 # --- Exemple d'utilisation ---
 if __name__ == "__main__":
     # 0 = Espace libre, 1 = Obstacle (mur, meuble, etc.)
     map_grid = [
-        [0, 0, 0, 0, 0],
-        [0, 1, 1, 1, 0],
-        [0, 0, 0, 0, 0],
-        [0, 1, 0, 1, 0],
-        [0, 0, 0, 0, 0]
+        [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0, 0, 1, 0, 1],
+        [0, 1, 0, 0, 0, 0, 0, 0, 1],
+        [0, 1, 0, 1, 1, 0, 1, 0, 0],
+        [0, 0, 0, 0, 1, 0, 1, 0, 1]
     ]
     
-    start_pos = (4, 0) # Bas gauche
-    end_pos = (0, 4)   # Haut droite
+    start_pos = (3, 0) # Bas gauche
+    end_pos = (3, 8)   # Haut droite
 
     print("Calcul du chemin de", start_pos, "à", end_pos)
     path = a_star(map_grid, start_pos, end_pos)
@@ -139,3 +159,45 @@ if __name__ == "__main__":
             print(" ".join(map(str, row)))
     else:
         print("Aucun chemin trouvé.")
+    
+    import time
+
+    GRID_ROWS = 400
+    GRID_COLS = 400
+    
+    print(f"--- Préparation de la Grille {GRID_ROWS}x{GRID_COLS} ---")
+    map_grid = generate_large_maze(GRID_ROWS, GRID_COLS, wall_percentage=0.03) # 3% d'obstacles aléatoires
+    
+    start_pos = (0, 0) # Coin supérieur gauche
+    end_pos = (GRID_ROWS - 1, GRID_COLS - 1) # Coin inférieur droit (399, 399)
+
+    print("Calcul du chemin de", start_pos, "à", end_pos)
+    
+    start_time = time.time()
+    path = a_star(map_grid, start_pos, end_pos)
+    end_time = time.time()
+    
+    elapsed_time = end_time - start_time
+
+    # --- Affichage des résultats ---
+    
+    if path:
+        print(f"\n✅ Chemin trouvé en {elapsed_time:.4f} secondes.")
+        print(f"Longueur du chemin : {len(path)} pas.")
+        
+        # NOTE : L'affichage d'une grille 400x400 est désactivé ici car il est trop long (160 000 caractères).
+        # Nous n'affichons que le début et la fin du chemin.
+        
+        print("\nDébut du chemin (premiers 5 pas) :")
+        for r, c in path[:5]:
+            print(f"-> ({r}, {c})")
+
+        print("...")
+        
+        print("Fin du chemin (derniers 5 pas) :")
+        for r, c in path[-5:]:
+            print(f"-> ({r}, {c})")
+            
+    else:
+        print(f"\n❌ Aucun chemin trouvé. Temps d'exécution : {elapsed_time:.4f} secondes.")
+        print("Cela peut indiquer que le chemin est bloqué par des murs.")
