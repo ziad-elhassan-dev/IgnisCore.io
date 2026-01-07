@@ -871,4 +871,4 @@ Chaque nœud (cellule de la grille) est évalué par trois coûts :
 
 ### Heuristique
 L'heuristique utilisée est la Distance de Manhattan, qui est adaptée aux mouvements horizontaux et verticaux (4 directions) sur la grille.
- `$$\mathbf{h} = |\mathbf{x_{current}} - \mathbf{x_{end}}| + |\mathbf{y_{current}} - \mathbf{y_{end}}|$$`
+ $$\mathbf{h} = |\mathbf{x_{current}} - \mathbf{x_{end}}| + |\mathbf{y_{current}} - \mathbf{y_{end}}|$$
