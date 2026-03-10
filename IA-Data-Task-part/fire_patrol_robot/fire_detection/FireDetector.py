@@ -55,8 +55,7 @@ class FireDetector:
                 }
     
     def detect_fire(self, scores, rapid_rise=False):
-        #decides action based on global score
-        if scores["global"] >= self.alert_thresh or rapid_rise:
+        if scores["global"] >= self.alert_thresh or (rapid_rise and scores["global"] >= 0.2):
             return "WARNING: start alarm"
         else:
             return "Nothing to do"

@@ -11,7 +11,7 @@ import random
 ZONE_CENTERS = {
     "A1": (0, 0), "A2": (0, 2), "A3": (0, 4), # Haut de la grille
     "B1": (2, 0), "B2": (2, 2), "B3": (2, 4), # Milieu de la grille
-    "C1": (4, 0), "C2": (4, 2), "C3": (4, 4)  # Bas de la grille
+    "C1": (4, 0), "C2": (4, 2), "C3": (3, 7)  # Bas de la grille
 }
 ALL_ZONE_IDS = list(ZONE_CENTERS.keys())
 
@@ -76,37 +76,41 @@ class AdvisorService:
         return priority
 
     def get_next_inspection_target(self, current_robot_pos):
-        """
-        Détermine la zone à inspecter avec la plus haute priorité.
-        """
         best_zone = None
         max_priority = -1.0
-        
+
+        # Find which zone the robot is currently in
+        current_zone = None
+        min_dist = float("inf")
+        for zone_id, center in ZONE_CENTERS.items():
+            dist = abs(current_robot_pos[0] - center[0]) + abs(current_robot_pos[1] - center[1])
+            if dist < min_dist:
+                min_dist = dist
+                current_zone = zone_id
+
         for zone_id in ALL_ZONE_IDS:
+            # ── NEW: skip the zone the robot is already standing in ──
+            if zone_id == current_zone:
+                continue
+
             priority = self.calculate_priority_score(zone_id)
-            
-            # 1. Sélection de la zone ayant la priorité maximale
+
             if priority > max_priority:
                 max_priority = priority
                 best_zone = zone_id
-            
-            # 2. Gestion de l'égalité (Tie-breaker): Choisir la zone la plus proche
             elif priority == max_priority and best_zone is not None:
                 current_target_pos = ZONE_CENTERS[best_zone]
                 new_target_pos = ZONE_CENTERS[zone_id]
-                
-                # Critère de proximité : Distance de Manhattan
                 dist_current = abs(current_robot_pos[0] - current_target_pos[0]) + abs(current_robot_pos[1] - current_target_pos[1])
                 dist_new = abs(current_robot_pos[0] - new_target_pos[0]) + abs(current_robot_pos[1] - new_target_pos[1])
-                
                 if dist_new < dist_current:
                     best_zone = zone_id
-                    
+
         if best_zone:
             target_coords = ZONE_CENTERS[best_zone]
             print(f"[Advisor] Zone recommandée: {best_zone} (Priorité: {max_priority:.2f}). Coords: {target_coords}")
             return target_coords, best_zone
-        
+
         return None, None 
 
 
