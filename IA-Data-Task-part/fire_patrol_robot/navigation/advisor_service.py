@@ -9,9 +9,12 @@ import random
 # Ces coordonnées (tuples) correspondent aux cibles pour l'algorithme A* (T16).
 # Format: {ID_ZONE: (ROW, COL), ...}
 ZONE_CENTERS = {
-    "A1": (0, 0), "A2": (0, 2), "A3": (0, 4), # Haut de la grille
-    "B1": (2, 0), "B2": (2, 2), "B3": (2, 4), # Milieu de la grille
-    "C1": (4, 0), "C2": (4, 2), "C3": (3, 7)  # Bas de la grille
+    # Row 0 — top strip
+    "A1": (0, 0), "A2": (0, 2), "A3": (0, 4), "A4": (0, 8),
+    # Row 2 — mid strip
+    "B1": (2, 0), "B2": (2, 2), "B3": (2, 4), "B4": (2, 6),
+    # Row 3-4 — bottom strip
+    "C1": (4, 0), "C2": (4, 2), "C3": (3, 7), "C4": (4, 5),
 }
 ALL_ZONE_IDS = list(ZONE_CENTERS.keys())
 

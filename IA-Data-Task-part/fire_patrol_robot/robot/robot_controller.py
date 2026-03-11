@@ -51,37 +51,9 @@ def simulate_ml_confirmation(risk_score, confidence_level=0.85):
     return False, "LOW"
 
 
-def simulate_read_sensors(pos, fire_event=False):
-    """
-    Simulate reading sensors at a given grid position.
-    fire_event=True means a fire was already detected here — readings stay hot.
-    In a real robot this would call the actual sensor API.
-    Returns a raw sensor dict.
-    """
-    import random
-    from datetime import datetime
-
-    # If fire already detected at this position, 75% chance readings stay hot
-    # Otherwise normal patrol: 20% chance of fire-like conditions
-    fire_chance = 0.75 if fire_event else 0.20
-    is_fire = random.random() < fire_chance
-
-    if is_fire:
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "temperature": random.uniform(65, 120),
-            "smoke": random.uniform(420, 1800),
-            "ir_flame": random.choice([0, 1]),
-            "proximity": random.uniform(10, 80)
-        }
-    else:
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "temperature": random.uniform(20, 45),
-            "smoke": random.uniform(50, 250),
-            "ir_flame": 0,
-            "proximity": random.uniform(50, 200)
-        }
+def simulate_mqtt_publish(topic, payload):
+    """Simulate sending a command over MQTT."""
+    print(f"  [MQTT] >> Topic: '{topic}' | Payload: {payload}")
 
 
 # ─────────────────────────────────────────
@@ -106,10 +78,43 @@ class RobotController:
         self.suspicion_readings = []         # Buffer for CONFIRM state
         self.incident_log = []               # History of all fire events
 
+        # Sensor data injected from outside each frame (replaces simulate_read_sensors)
+        self.injected_sensor_data = None
+
+        # Prevents FSM from looping on the same fire event
+        # Set True after REPORT, reset when sensors return to normal
+        self.fire_handled = False
+
     # ── State transitions ──────────────────
     def set_state(self, new_state):
         print(f"\n  [FSM] {self.current_state} --> {new_state}")
         self.current_state = new_state
+
+    # ── Sensor injection ───────────────────
+    def inject_sensor_data(self, sensor_data):
+        """
+        Called once per frame by the simulator before step().
+        Provides real sensor readings from the dataset instead of random data.
+        Also resets fire_handled when sensors return to normal (global score low).
+        """
+        self.injected_sensor_data = sensor_data
+
+        # Reset fire_handled when environment is back to normal
+        # so robot can react to a future fire event
+        preprocessed = self.detector.preprocess(sensor_data.copy())
+        scores = self.detector.calculate_fire_risk(preprocessed)
+        if scores["global"] < 0.10 and self.fire_handled:
+            self.fire_handled = False
+
+    def _read_sensors(self):
+        """
+        Returns current sensor data.
+        Uses injected data if available, otherwise raises an error —
+        in the simulator, inject_sensor_data() must always be called first.
+        """
+        if self.injected_sensor_data is not None:
+            return self.injected_sensor_data.copy()
+        raise RuntimeError("No sensor data injected. Call inject_sensor_data() before step().")
 
     # ── IDLE ───────────────────────────────
     def handle_idle(self):
@@ -130,13 +135,13 @@ class RobotController:
         """
         Move one step along the planned path.
         At each step, read sensors.
-        If sensors trigger, switch to SUSPICION.
-        If destination reached, read sensors then get new target.
+        If sensors trigger (and fire not already handled), switch to SUSPICION.
+        If destination reached, update advisor and get new target.
         """
         if not self.current_path:
             # Destination reached
             print(f"[PATROL] Destination {self.destination_zone} atteinte en {self.current_pos}.")
-            sensor_data = simulate_read_sensors(self.current_pos)
+            sensor_data = self._read_sensors()
             preprocessed = self.detector.preprocess(sensor_data)
             scores = self.detector.calculate_fire_risk(preprocessed)
             action = self.detector.detect_fire(scores)
@@ -146,8 +151,9 @@ class RobotController:
             # Update advisor with this zone's risk score
             self.advisor.update_zone_data(self.destination_zone, scores["global"])
 
-            if action == "WARNING: start alarm":
+            if action == "WARNING: start alarm" and not self.fire_handled:
                 self.suspicion_readings = [scores]
+                self.current_path = []   # freeze robot at this cell
                 self.set_state(RobotState.SUSPICION)
             else:
                 # Get next target
@@ -166,18 +172,17 @@ class RobotController:
         self.current_pos = next_pos
 
         # Read sensors mid-path
-        sensor_data = simulate_read_sensors(self.current_pos)
+        sensor_data = self._read_sensors()
         preprocessed = self.detector.preprocess(sensor_data)
         scores = self.detector.calculate_fire_risk(preprocessed)
         rapid_rise = self.detector.detect_rapid_rise(sensor_data)
         action = self.detector.detect_fire(scores, rapid_rise=rapid_rise)
 
-        if action == "WARNING: start alarm":
+        if action == "WARNING: start alarm" and not self.fire_handled:
             print(f"  [PATROL] ⚠️  Anomalie détectée! Score: {scores['global']:.2f}")
             self.suspicion_readings = [scores]
+            self.current_path = []   # freeze robot at this cell
             self.set_state(RobotState.SUSPICION)
-
-        time.sleep(0.05)  # Simulate movement time
 
     # ── SUSPICION ──────────────────────────
     def handle_suspicion(self):
@@ -186,8 +191,7 @@ class RobotController:
         total_reads = 3
 
         for i in range(total_reads):
-            time.sleep(0.1)
-            sensor_data = simulate_read_sensors(self.current_pos, fire_event=True)  # ← fire_event=True
+            sensor_data = self._read_sensors()
             preprocessed = self.detector.preprocess(sensor_data)
             scores = self.detector.calculate_fire_risk(preprocessed)
             rapid_rise = self.detector.detect_rapid_rise(sensor_data)
@@ -239,23 +243,31 @@ class RobotController:
                 "position": self.current_pos,
                 "avg_score": round(avg_global, 3)
             })
+            # Only move away if sensors are genuinely clear.
+            # If still elevated, stay frozen at this cell — otherwise each false alarm
+            # drifts the robot one step and extinguish ends up far from the fire.
+            current_sensor = self._read_sensors()
+            pre = self.detector.preprocess(current_sensor)
+            current_scores = self.detector.calculate_fire_risk(pre)
+
+            if current_scores["global"] < self.detector.alert_thresh:
+                target_pos, zone_id = self.advisor.get_next_inspection_target(self.current_pos)
+                if target_pos:
+                    self._plan_path_to(target_pos, zone_id)
+            else:
+                print(f"  [CONFIRM] Capteurs encore élevés ({current_scores['global']:.2f}) → maintien position.")
             self.set_state(RobotState.PATROL)
 
     # ── EXTINGUISH ─────────────────────────
     def handle_extinguish(self):
         """
-        Activate the pump. Simulate extinguishing for a few seconds.
-        Then switch to REPORT.
+        Activate the pump. In the simulator this state lasts multiple frames.
+        The simulator counts frames in this state and calls set_state(REPORT)
+        after enough frames. Here we just signal pump ON and move to REPORT.
         """
         print("[EXTINGUISH] 💧 Activation de la pompe...")
         simulate_mqtt_publish("robot/pump", {"command": "START", "position": self.current_pos})
-
-        # Simulate pump running
-        for i in range(3):
-            time.sleep(0.3)
-            print(f"  [EXTINGUISH] Pompe active... ({i+1}/3)")
-
-        simulate_mqtt_publish("robot/pump", {"command": "STOP", "position": self.current_pos})
+        simulate_mqtt_publish("robot/pump", {"command": "STOP",  "position": self.current_pos})
         print("[EXTINGUISH] ✅ Pompe arrêtée.")
         self.set_state(RobotState.REPORT)
 
@@ -263,6 +275,7 @@ class RobotController:
     def handle_report(self):
         """
         Log the incident. Notify control center via MQTT. Resume patrol.
+        Sets fire_handled=True so the FSM won't loop on the same fire event.
         """
         incident = {
             "timestamp": __import__("datetime").datetime.now().isoformat(),
@@ -277,9 +290,22 @@ class RobotController:
         print(f"[REPORT] 📋 Incident enregistré: {incident}")
         simulate_mqtt_publish("robot/report", incident)
 
-        # Update advisor: this zone just had a fire, high risk score
+        # Update advisor with final score for the destination zone
         if self.destination_zone:
             self.advisor.update_zone_data(self.destination_zone, incident["avg_score"])
+
+        # Reset risk scores for ALL zones near the fire position (Manhattan dist <= 2).
+        # Fire mid-path inflates readings in neighbouring zones too — without this,
+        # the advisor keeps recommending those zones and the robot never leaves the area.
+        fire_pos = self.current_pos
+        for zone_id, center in ZONE_CENTERS.items():
+            dist = abs(fire_pos[0] - center[0]) + abs(fire_pos[1] - center[1])
+            if dist <= 2:
+                self.advisor.zone_data[zone_id]["avg_risk_score"] = 0.0
+                print(f"[REPORT] Zone {zone_id} (dist={dist}) risk score réinitialisé.")
+
+        # Mark fire as handled — won't retrigger until sensors return to normal
+        self.fire_handled = True
 
         # Clear suspicion buffer
         self.suspicion_readings = []

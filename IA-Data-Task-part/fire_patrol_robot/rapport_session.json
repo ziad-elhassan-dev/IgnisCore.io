@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-03-11T11:41:13.458706+00:00",
+  "frame": 599,
+  "duration": "04:59",
+  "fsm_state": "PATROL",
+  "fire_handled": false,
+  "incidents": 1,
+  "incident_log": [
+    {
+      "timestamp": "2026-03-11T12:37:58.575152",
+      "position": [
+        0,
+        4
+      ],
+      "zone": "A3",
+      "readings": 4,
+      "avg_score": 0.612
+    }
+  ],
+  "fd_scores": {
+    "temp": 0,
+    "smoke": 0,
+    "ir": 0,
+    "global": 0.0,
+    "proximity": 0
+  },
+  "robot_cell": [
+    0,
+    8
+  ],
+  "destination": "A3",
+  "ppm_max": 628.0,
+  "temp_max": 63.1
+}

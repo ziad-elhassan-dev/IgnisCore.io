@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 
 class FireDetector:
-    def __init__(self, temp_thresh=50, smoke_thresh=300, ir_thresh=1, weight_temp=0.4, weight_smoke=0.4, weight_ir=0.2, alert_thresh=0.5, temp_delta_thresh=10, smoke_delta_thresh=200):
+    def __init__(self, temp_thresh=30, smoke_thresh=100, ir_thresh=1, weight_temp=0.3, weight_smoke=0.5, weight_ir=0.2, alert_thresh=0.40, temp_delta_thresh=5, smoke_delta_thresh=30):
         #Seuils capteurs
         self.temp_thresh = temp_thresh
         self.smoke_thresh = smoke_thresh
@@ -73,6 +73,26 @@ class FireDetector:
     def log_result(self, scores, action):
         print(f"Scores: {scores}")
         print(f"Action: {action}")
+
+    @staticmethod
+    def from_dataset_entry(entry):
+        """
+        Convert a dataset JSON entry into a sensor_data dict
+        compatible with preprocess() and calculate_fire_risk().
+
+        Dataset fields used:
+          ppm         -> smoke
+          temperature -> temperature
+          ir_flame    -> always 0 (not in dataset, computed by FSM if needed)
+          proximity   -> 0 (not in dataset)
+        """
+        return {
+            "timestamp":   entry["timer"]["timestamp_utc"],
+            "temperature": float(entry["temperature"]["readings"]["temperature"]["value"]),
+            "smoke":       float(entry["air_quality"]["readings"]["processed"]["ppm"]),
+            "ir_flame":    0,
+            "proximity":   0,
+        }
         
     
         
@@ -92,5 +112,4 @@ if __name__ == "__main__":
     preprocessed = detector.preprocess(data)
     scores = detector.calculate_fire_risk(preprocessed)
     action = detector.detect_fire(scores)
-    detector.log_result(scores, action)       
-    
+    detector.log_result(scores, action)
