@@ -1,6 +1,7 @@
 # robot_controller.py
 
 import time
+from datetime import datetime
 from fire_detection.FireDetector import FireDetector
 from navigation.advisor_service import AdvisorService, ZONE_CENTERS
 from navigation.pathfinding_a_star import a_star
@@ -27,8 +28,9 @@ class RobotState:
     PATROL     = "PATROL"      # Moving along path to target zone
     SUSPICION  = "SUSPICION"   # Sensor triggered — stopping to re-read
     CONFIRM    = "CONFIRM"     # Deep analysis: multiple reads + rapid-rise check
-    EXTINGUISH = "EXTINGUISH"  # Fire confirmed — activate pump
-    REPORT     = "REPORT"      # Incident logged — return to patrol
+    EXTINGUISH     = "EXTINGUISH"      # Fire confirmed — activate pump
+    REPORT         = "REPORT"          # Incident logged — return to patrol
+    RETURN_TO_BASE = "RETURN_TO_BASE"  # Full cycle done — return to start position
 
 
 # ─────────────────────────────────────────
@@ -39,21 +41,20 @@ def simulate_mqtt_publish(topic, payload):
     print(f"  [MQTT] >> Topic: '{topic}' | Payload: {payload}")
 
 
-def simulate_ml_confirmation(risk_score, confidence_level=0.85):
+def simulate_ml_confirmation(risk_score, confidence_level=0.70):
     """
     Simulate a secondary ML model confirmation.
+    Thresholds tuned to actual dataset score range (peak ~0.61-0.68):
+      CRITICAL  >= 0.70
+      MODERATE  >= 0.55
+      LOW / no confirmation < 0.55
     Returns (confirmed: bool, severity: str)
     """
     if risk_score >= confidence_level:
         return True, "CRITICAL"
-    elif risk_score >= 0.6:
+    elif risk_score >= 0.55:
         return True, "MODERATE"
     return False, "LOW"
-
-
-def simulate_mqtt_publish(topic, payload):
-    """Simulate sending a command over MQTT."""
-    print(f"  [MQTT] >> Topic: '{topic}' | Payload: {payload}")
 
 
 # ─────────────────────────────────────────
@@ -70,12 +71,14 @@ class RobotController:
         self.advisor = advisor
 
         self.current_state = RobotState.IDLE
-        self.current_pos = initial_pos       # (row, col) on MAP_GRID
+        self.current_pos  = initial_pos      # (row, col) on MAP_GRID
+        self.initial_pos  = initial_pos      # start position — used by RETURN_TO_BASE
         self.current_path = []               # List of (row, col) steps
         self.destination_pos = None          # Target (row, col)
         self.destination_zone = None         # Zone ID e.g. "A3"
 
         self.suspicion_readings = []         # Buffer for CONFIRM state
+        self.suspicion_step     = 0          # Frame counter inside SUSPICION (0-2)
         self.incident_log = []               # History of all fire events
 
         # Sensor data injected from outside each frame (replaces simulate_read_sensors)
@@ -83,12 +86,16 @@ class RobotController:
 
         # Prevents FSM from looping on the same fire event
         # Set True after REPORT, reset when sensors return to normal
-        self.fire_handled = False
+        self.fire_handled    = False
+        self.last_severity   = None   # severity of last confirmed fire
 
     # ── State transitions ──────────────────
     def set_state(self, new_state):
         print(f"\n  [FSM] {self.current_state} --> {new_state}")
         self.current_state = new_state
+        # Reset suspicion counter whenever we leave SUSPICION
+        if new_state != RobotState.SUSPICION:
+            self.suspicion_step = 0
 
     # ── Sensor injection ───────────────────
     def inject_sensor_data(self, sensor_data):
@@ -103,8 +110,9 @@ class RobotController:
         # so robot can react to a future fire event
         preprocessed = self.detector.preprocess(sensor_data.copy())
         scores = self.detector.calculate_fire_risk(preprocessed)
-        if scores["global"] < 0.10 and self.fire_handled:
-            self.fire_handled = False
+        if scores["global"] < 0.25 and self.fire_handled:  # matches actual normal-state score range
+            self.fire_handled    = False
+        self.last_severity   = None   # severity of last confirmed fire
 
     def _read_sensors(self):
         """
@@ -124,7 +132,6 @@ class RobotController:
 
         if target_pos is None:
             print("[IDLE] Aucune cible disponible. Attente...")
-            time.sleep(1)
             return
 
         self._plan_path_to(target_pos, zone_id)
@@ -144,7 +151,8 @@ class RobotController:
             sensor_data = self._read_sensors()
             preprocessed = self.detector.preprocess(sensor_data)
             scores = self.detector.calculate_fire_risk(preprocessed)
-            action = self.detector.detect_fire(scores)
+            rapid_rise = self.detector.detect_rapid_rise(sensor_data)
+            action = self.detector.detect_fire(scores, rapid_rise=rapid_rise)
 
             print(f"  [PATROL] Lecture arrivée → score global: {scores['global']:.2f} | action: {action}")
 
@@ -161,8 +169,8 @@ class RobotController:
                 if target_pos:
                     self._plan_path_to(target_pos, zone_id)
                 else:
-                    print("[PATROL] Aucune nouvelle cible. Retour en IDLE.")
-                    self.set_state(RobotState.IDLE)
+                    print("[PATROL] Cycle complet. Retour à la base.")
+                    self.set_state(RobotState.RETURN_TO_BASE)
             return
 
         # Move one step
@@ -182,26 +190,42 @@ class RobotController:
             print(f"  [PATROL] ⚠️  Anomalie détectée! Score: {scores['global']:.2f}")
             self.suspicion_readings = [scores]
             self.current_path = []   # freeze robot at this cell
+            # Update destination_zone to the actual freeze cell so REPORT logs correctly
+            self.destination_zone = self._get_zone_from_pos(self.current_pos)
             self.set_state(RobotState.SUSPICION)
 
     # ── SUSPICION ──────────────────────────
     def handle_suspicion(self):
-        print("[SUSPICION] Robot arrêté. Lectures de vérification en cours...")
-        confirm_count = 0
+        """
+        One sensor read per FSM frame (3 frames total).
+        Each frame gets a fresh injected reading from the dataset/MQTT.
+        After 3 reads, decide CONFIRM or false alarm.
+        """
         total_reads = 3
 
-        for i in range(total_reads):
-            sensor_data = self._read_sensors()
-            preprocessed = self.detector.preprocess(sensor_data)
-            scores = self.detector.calculate_fire_risk(preprocessed)
-            rapid_rise = self.detector.detect_rapid_rise(sensor_data)
-            action = self.detector.detect_fire(scores, rapid_rise=rapid_rise)
+        # First entry — print header once
+        if self.suspicion_step == 0:
+            print("[SUSPICION] Robot arrêté. Lectures de vérification en cours...")
 
-            self.suspicion_readings.append(scores)
-            print(f"  [SUSPICION] Lecture {i+1}/{total_reads}: global={scores['global']:.2f} | {action}")
+        sensor_data = self._read_sensors()
+        preprocessed = self.detector.preprocess(sensor_data)
+        scores = self.detector.calculate_fire_risk(preprocessed)
+        rapid_rise = self.detector.detect_rapid_rise(sensor_data)
+        action = self.detector.detect_fire(scores, rapid_rise=rapid_rise)
 
-            if action == "WARNING: start alarm":
-                confirm_count += 1
+        self.suspicion_readings.append(scores)
+        self.suspicion_step += 1
+        print(f"  [SUSPICION] Lecture {self.suspicion_step}/{total_reads}: global={scores['global']:.2f} | {action}")
+
+        if self.suspicion_step < total_reads:
+            return  # Wait for next frame
+
+        # All 3 reads collected — evaluate
+        confirm_count = sum(
+            1 for s in self.suspicion_readings[-total_reads:]
+            if self.detector.detect_fire(s) == "WARNING: start alarm"
+        )
+        self.suspicion_step = 0  # Reset for next time
 
         if confirm_count >= 2:
             print(f"  [SUSPICION] ⚠️  {confirm_count}/{total_reads} lectures positives → CONFIRM")
@@ -229,6 +253,7 @@ class RobotController:
 
         if is_fire:
             print(f"  [CONFIRM] 🔥 Incendie CONFIRMÉ. Sévérité: {severity}")
+            self.last_severity = severity   # stored for UI display
             simulate_mqtt_publish("robot/alert", {
                 "type": "FIRE_CONFIRMED",
                 "severity": severity,
@@ -243,19 +268,15 @@ class RobotController:
                 "position": self.current_pos,
                 "avg_score": round(avg_global, 3)
             })
-            # Only move away if sensors are genuinely clear.
-            # If still elevated, stay frozen at this cell — otherwise each false alarm
-            # drifts the robot one step and extinguish ends up far from the fire.
-            current_sensor = self._read_sensors()
-            pre = self.detector.preprocess(current_sensor)
-            current_scores = self.detector.calculate_fire_risk(pre)
-
-            if current_scores["global"] < self.detector.alert_thresh:
+            # Use avg_global already computed — avoids consuming the same MQTT frame twice.
+            # If sensors are still elevated, stay frozen so the robot doesn't drift
+            # away from the fire cell before confirmation.
+            if avg_global < self.detector.alert_thresh:
                 target_pos, zone_id = self.advisor.get_next_inspection_target(self.current_pos)
                 if target_pos:
                     self._plan_path_to(target_pos, zone_id)
             else:
-                print(f"  [CONFIRM] Capteurs encore élevés ({current_scores['global']:.2f}) → maintien position.")
+                print(f"  [CONFIRM] Capteurs encore élevés ({avg_global:.2f}) → maintien position.")
             self.set_state(RobotState.PATROL)
 
     # ── EXTINGUISH ─────────────────────────
@@ -278,13 +299,14 @@ class RobotController:
         Sets fire_handled=True so the FSM won't loop on the same fire event.
         """
         incident = {
-            "timestamp": __import__("datetime").datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),
             "position": self.current_pos,
             "zone": self._get_zone_from_pos(self.current_pos),
             "readings": len(self.suspicion_readings),
             "avg_score": round(
                 sum(s["global"] for s in self.suspicion_readings) / len(self.suspicion_readings), 3
-            )
+            ),
+            "severity": self.last_severity or "UNKNOWN"
         }
         self.incident_log.append(incident)
         print(f"[REPORT] 📋 Incident enregistré: {incident}")
@@ -311,6 +333,44 @@ class RobotController:
         self.suspicion_readings = []
         self.set_state(RobotState.PATROL)
         
+    # ── RETURN TO BASE ────────────────────
+    def handle_return_to_base(self):
+        """
+        Navigate back to the initial start position (4,0).
+        Once arrived, switch to IDLE for next patrol cycle.
+        """
+        if not self.current_path:
+            if self.current_pos == self.initial_pos:
+                print(f"[RETURN_TO_BASE] ✅ Base atteinte en {self.current_pos}. Retour en IDLE.")
+                self.set_state(RobotState.IDLE)
+                return
+            # Plan path to base
+            path = a_star(MAP_GRID, self.current_pos, self.initial_pos)
+            if path:
+                self.current_path = path[1:]
+                print(f"[RETURN_TO_BASE] Route vers base {self.initial_pos}: {len(self.current_path)} pas.")
+            else:
+                print("[RETURN_TO_BASE] ⚠️ Aucun chemin vers la base. Retour IDLE.")
+                self.set_state(RobotState.IDLE)
+            return
+
+        next_pos = self.current_path.pop(0)
+        print(f"[RETURN_TO_BASE] {self.current_pos} -> {next_pos} (reste {len(self.current_path)} pas)")
+        self.current_pos = next_pos
+
+        # Check sensors on every step — a fire could start during return trip
+        sensor_data = self._read_sensors()
+        preprocessed = self.detector.preprocess(sensor_data)
+        scores = self.detector.calculate_fire_risk(preprocessed)
+        rapid_rise = self.detector.detect_rapid_rise(sensor_data)
+        action = self.detector.detect_fire(scores, rapid_rise=rapid_rise)
+        if action == "WARNING: start alarm" and not self.fire_handled:
+            print(f"  [RETURN_TO_BASE] ⚠️  Anomalie détectée en route! Score: {scores['global']:.2f}")
+            self.suspicion_readings = [scores]
+            self.current_path = []
+            self.destination_zone = self._get_zone_from_pos(self.current_pos)
+            self.set_state(RobotState.SUSPICION)
+
     def _get_zone_from_pos(self, pos):
         """Find the closest zone to the current position."""
         closest_zone = None
@@ -352,6 +412,8 @@ class RobotController:
             self.handle_extinguish()
         elif self.current_state == RobotState.REPORT:
             self.handle_report()
+        elif self.current_state == RobotState.RETURN_TO_BASE:
+            self.handle_return_to_base()
 
     def run(self, max_steps=200):
         """

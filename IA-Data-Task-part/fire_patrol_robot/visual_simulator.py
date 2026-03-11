@@ -34,6 +34,7 @@ import json
 import math
 import os
 import sys
+import time
 from collections import deque
 from datetime import datetime, timezone
 
@@ -71,7 +72,7 @@ ARENA_H    = WIN_H - HEADER_H - TIMELINE_H  # 720
 TIMELINE_Y = WIN_H - TIMELINE_H
 FPS        = 60
 FRAME_MS   = 500
-SPARKLINE_N = 50
+SPARKLINE_N = 150  # ~75 seconds of history at 0.5s/frame
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  GRID  (derived from MAP_GRID in robot_controller)
@@ -113,8 +114,9 @@ FSM_RGB = {
     RobotState.PATROL:     CYAN,
     RobotState.SUSPICION:  YELLOW,
     RobotState.CONFIRM:    ORANGE,
-    RobotState.EXTINGUISH: RED_C,
-    RobotState.REPORT:     GREEN,
+    RobotState.EXTINGUISH:     RED_C,
+    RobotState.REPORT:         GREEN,
+    RobotState.RETURN_TO_BASE: (120, 80, 220),  # purple
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -175,7 +177,7 @@ def sec_label(surf, label, font, x, y, x2):
 # ─────────────────────────────────────────────────────────────────────────────
 #  ROBOT SPRITE
 # ─────────────────────────────────────────────────────────────────────────────
-def draw_robot(surf, cx, cy, angle, col, pump=False):
+def draw_robot(surf, cx, cy, angle, col, pump=False, wheel_rot=0.0):
     import random
     cx, cy = int(cx), int(cy)
 
@@ -198,7 +200,7 @@ def draw_robot(surf, cx, cy, angle, col, pump=False):
     ])
     surf.blit(cone, (0, 0))
 
-    # Wheels
+    # Wheels — tread marks rotate with wheel_rot for spin effect
     perp = angle + math.pi / 2
     ca, sa = math.cos(angle), math.sin(angle)
     for side in (1, -1):
@@ -208,6 +210,13 @@ def draw_robot(surf, cx, cy, angle, col, pump=False):
         wpts = [(int(wx + lx * ca - ly * sa),
                  int(wy + lx * sa + ly * ca)) for lx, ly in corners]
         pygame.draw.polygon(surf, (45, 55, 72), wpts)
+        pygame.draw.polygon(surf, (70, 82, 100), wpts, 1)
+        # Tread tick — a small line that rotates with wheel_rot
+        tick_offset = math.sin(wheel_rot + side * 1.2) * 5
+        t1 = (int(wx + tick_offset * ca), int(wy + tick_offset * sa))
+        t2 = (int(wx + tick_offset * ca - 2 * math.cos(perp) * side),
+              int(wy + tick_offset * sa - 2 * math.sin(perp) * side))
+        pygame.draw.line(surf, (100, 118, 140), t1, t2, 1)
 
     # Glow rings
     t     = pygame.time.get_ticks()
@@ -267,19 +276,38 @@ def draw_arena(surf, robot, fonts):
                 pygame.draw.rect(surf, FREE_COL, (rx, ry, rw, rh))
                 pygame.draw.rect(surf, GRID_LINE, (rx, ry, rw, rh), 1)
 
-    # ── Zone overlays + labels ────────────────────────────────────────────────
+    # ── Zone risk heatmap — colour every free cell by its nearest zone's risk ───
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            if MAP_GRID[r][c] != 0:
+                continue
+            # Find closest zone center
+            best_zid, best_dist = None, float("inf")
+            for zid, (zr, zc_) in ZONE_CENTERS.items():
+                d = abs(r - zr) + abs(c - zc_)
+                if d < best_dist:
+                    best_dist, best_zid = d, zid
+            zrisk = robot.advisor.zone_data[best_zid]["avg_risk_score"] if best_zid else 0
+            if zrisk > 0.02:
+                # Blend: low risk = deep blue tint, mid = orange, high = red
+                if zrisk < 0.35:
+                    rc = (0, 80, 180)
+                elif zrisk < 0.60:
+                    rc = ORANGE
+                else:
+                    rc = RED_C
+                alpha = int(min(zrisk * 110, 100))
+                heat = pygame.Surface((int(CELL_W) - 2, int(CELL_H) - 2), pygame.SRCALPHA)
+                heat.fill((*rc, alpha))
+                surf.blit(heat, (int(ax + c * CELL_W) + 1, int(ay + r * CELL_H) + 1))
+
+    # ── Zone labels + destination highlight ───────────────────────────────────
     for zid, (zr, zc) in ZONE_CENTERS.items():
         zpx, zpy = cell_to_px(zr, zc)
         zpx += ax; zpy += ay
-        zrisk = robot.advisor.zone_data[zid]["avg_risk_score"]
-
-        if zrisk > 0.05:
-            rc   = RED_C if zrisk > 0.5 else ORANGE
-            heat = pygame.Surface((int(CELL_W) - 2, int(CELL_H) - 2), pygame.SRCALPHA)
-            heat.fill((*rc, int(zrisk * 90)))
-            surf.blit(heat, (int(ax + zc * CELL_W) + 1, int(ay + zr * CELL_H) + 1))
-
+        zrisk   = robot.advisor.zone_data[zid]["avg_risk_score"]
         is_dest = (robot.destination_zone == zid)
+
         if is_dest:
             ds = pygame.Surface((int(CELL_W) - 2, int(CELL_H) - 2), pygame.SRCALPHA)
             ds.fill((*CYAN, 22))
@@ -358,7 +386,7 @@ def draw_arena(surf, robot, fonts):
     # ── Robot sprite ──────────────────────────────────────────────────────────
     pump_on = (robot.current_state == RobotState.EXTINGUISH)
     draw_robot(surf, ax + robot._px, ay + robot._py,
-               robot._angle, fsc, pump=pump_on)
+               robot._angle, fsc, pump=pump_on, wheel_rot=robot._wheel_rot)
 
     txt(surf, robot.current_state, fonts["sm_bold"], fsc,
         int(ax + robot._px), int(ay + robot._py) - ROBOT_R - 13, "midbottom")
@@ -404,7 +432,7 @@ def draw_left(surf, fi, data, fonts, robot, scores):
 
     # FSM
     sec("FSM STATE")
-    cr2 = pygame.Rect(pad, y, W - pad * 2, 84)
+    cr2 = pygame.Rect(pad, y, W - pad * 2, 100)
     card(surf, cr2)
     y += 6
     fsc = FSM_RGB.get(robot.current_state, CYAN)
@@ -413,6 +441,10 @@ def draw_left(surf, fi, data, fonts, robot, scores):
         ORANGE if robot.fire_handled else GREEN)
     row("INCIDENTS", str(len(robot.incident_log)),
         ORANGE if robot.incident_log else GREEN)
+    if robot.incident_log:
+        sev = robot.last_severity or "—"
+        sc  = RED_C if sev == "CRITICAL" else (ORANGE if sev == "MODERATE" else GRAY)
+        row("LAST SEV.", sev, sc)
     if robot.current_state in (RobotState.SUSPICION, RobotState.CONFIRM):
         sr = len(robot.suspicion_readings)
         txt(surf, f"READS {sr}/3", fonts["sm"], YELLOW, pad + 5, y)
@@ -439,7 +471,7 @@ def draw_left(surf, fi, data, fonts, robot, scores):
                           ("IR",    scores["ir"],    RED_C)):
         txt(surf, lbl,        fonts["sm"], GRAY_DIM, pad + 5,      y)
         txt(surf, f"{val:.2f}", fonts["sm"], vc,     W - pad - 5,  y, "topright")
-        hbar(surf, pad + 36, y + 2, W - pad * 2 - 44, 4, val, 1.0, vc)
+        hbar(surf, pad + 36, y + 2, W - pad * 2 - 76, 4, val, 1.0, vc)
         y += 14
     y = cr3.bottom + 8
 
@@ -502,7 +534,7 @@ def draw_right(surf, fi, data, ppm_h, temp_h, fonts, robot):
 
     # Temperature — alert computed live
     sec("TEMPERATURE  DHT11")
-    tp_r = pygame.Rect(rx0 + pad, y, rw, 80)
+    tp_r = pygame.Rect(rx0 + pad, y, rw, 96)
     card(surf, tp_r)
     ty = y + 6
     tv = tmp["readings"]["temperature"]["value"]
@@ -519,8 +551,8 @@ def draw_right(surf, fi, data, ppm_h, temp_h, fonts, robot):
     ty += 36
     txt(surf, "HEAT INDEX",  fonts["sm"], GRAY,  rx0 + pad + 6,   ty)
     txt(surf, f"{hi:.1f}°C", fonts["sm"], WHITE, WIN_W - pad - 6, ty, "topright")
-    ty += 16
-    pill(surf, t_alert.upper(), fonts["sm"], rx0 + pad + 42, ty, tc)
+    ty += 18
+    pill(surf, t_alert.upper(), fonts["sm"], rx0 + pad + 30, ty, tc)
     y = tp_r.bottom + 8
 
     # Sparklines
@@ -556,7 +588,7 @@ def draw_right(surf, fi, data, ppm_h, temp_h, fonts, robot):
             txt(surf, ("► " if is_dest else "  ") + zid,
                 fonts["sm"], lc, rx0 + pad + 4, zy)
             txt(surf, f"{p:.2f}", fonts["sm"], zc, WIN_W - pad - 6, zy, "topright")
-            hbar(surf, rx0 + pad + 36, zy + 3, rw - 52, 4, risk, 1.0, zc)
+            hbar(surf, rx0 + pad + 36, zy + 3, rw - 68, 4, risk, 1.0, zc)
             zy += 14
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -601,7 +633,7 @@ def draw_header(surf, fi, total, data, fonts, playing, speed, robot, scores):
 # ─────────────────────────────────────────────────────────────────────────────
 #  TIMELINE
 # ─────────────────────────────────────────────────────────────────────────────
-def draw_timeline(surf, fi, total, data, fonts, scores_hist, robot):
+def draw_timeline(surf, fi, total, data, fonts, scores_hist, robot, fsm_events):
     pygame.draw.rect(surf, PANEL_BG2, (0, TIMELINE_Y, WIN_W, TIMELINE_H))
     pygame.draw.line(surf, BORDER_LIT, (0, TIMELINE_Y), (WIN_W, TIMELINE_Y), 1)
 
@@ -633,6 +665,14 @@ def draw_timeline(surf, fi, total, data, fonts, scores_hist, robot):
         pc = RED_C if g >= 0.6 else (ORANGE if g >= 0.40 else CYAN)
     if fw > 0:
         pygame.draw.rect(surf, pc, (bx, by, fw, bh))
+
+    # FSM event markers above the bar
+    marker_colors = {"suspicion": ORANGE, "confirm": RED_C, "extinguish": (80, 200, 255)}
+    for (ef, etype) in fsm_events:
+        mx = bx + int(ef / max(1, total - 1) * bw)
+        mc = marker_colors.get(etype, WHITE)
+        pygame.draw.line(surf, mc, (mx, by - 6), (mx, by + bh + 2), 2)
+        pygame.draw.circle(surf, mc, (mx, by - 7), 3)
 
     # Scrubber knob
     cx_ = bx + fw
@@ -673,20 +713,48 @@ def make_fonts():
 # ─────────────────────────────────────────────────────────────────────────────
 #  EXPORT
 # ─────────────────────────────────────────────────────────────────────────────
-def export_report(fi, data, robot, scores):
+def export_report(fi, data, robot, scores, scores_hist, fsm_events):
     up  = data[fi]["timer"]["uptime_ms"]
     out = os.path.join(PROJECT_ROOT, "rapport_session.json")
+
+    # Scores summary
+    sh = list(scores_hist)
+    score_summary = {
+        "min":  round(min(sh), 3) if sh else 0,
+        "max":  round(max(sh), 3) if sh else 0,
+        "avg":  round(sum(sh) / len(sh), 3) if sh else 0,
+        "frames_above_0_40": sum(1 for s in sh if s >= 0.40),
+        "frames_above_0_60": sum(1 for s in sh if s >= 0.60),
+    }
+
+    # Zone visit counts from advisor
+    zone_summary = {
+        zid: {
+            "avg_risk_score": round(zdata["avg_risk_score"], 3),
+            "last_inspected_ago_s": round(time.time() - zdata["last_inspected"], 1),
+        }
+        for zid, zdata in robot.advisor.zone_data.items()
+    }
+
+    # Cells visited (unique)
+    cells_visited = list({tuple(pos) for pos in robot._trail + [robot.current_pos]})
+
     rep = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "frame":        fi,
-        "duration":     f"{up // 60000:02d}:{(up % 60000) // 1000:02d}",
-        "fsm_state":    robot.current_state,
-        "fire_handled": robot.fire_handled,
-        "incidents":    len(robot.incident_log),
-        "incident_log": robot.incident_log,
-        "fd_scores":    scores,
-        "robot_cell":   robot.current_pos,
-        "destination":  robot.destination_zone,
+        "generated_at":   datetime.now(timezone.utc).isoformat(),
+        "frame":          fi,
+        "total_frames":   len(data),
+        "duration":       f"{up // 60000:02d}:{(up % 60000) // 1000:02d}",
+        "fsm_state":      robot.current_state,
+        "fire_handled":   robot.fire_handled,
+        "robot_cell":     robot.current_pos,
+        "destination":    robot.destination_zone,
+        "incidents":      len(robot.incident_log),
+        "incident_log":   robot.incident_log,
+        "fd_scores":      scores,
+        "score_summary":  score_summary,
+        "zone_summary":   zone_summary,
+        "cells_visited":  len(cells_visited),
+        "fsm_events":     [{"frame": ef, "event": et} for ef, et in fsm_events],
         "ppm_max": round(max(
             d["air_quality"]["readings"]["processed"]["ppm"]
             for d in data[:fi + 1]), 2),
@@ -711,19 +779,22 @@ def build_sim():
     robot._trail     = []                      # [(row,col), ...] visited cells
     robot._fire_cell = None                    # cell where fire was first confirmed
     robot._px, robot._py = cell_to_px(4, 0)   # smooth pixel position
-    robot._angle     = 0.0                     # facing direction in radians
+    robot._angle        = 0.0   # current facing angle (lerped each render frame)
+    robot._target_angle  = 0.0   # target facing angle set by advance()
+    robot._wheel_rot     = 0.0   # wheel spin accumulator
 
     ppm_h       = deque(maxlen=SPARKLINE_N)
     temp_h      = deque(maxlen=SPARKLINE_N)
     scores      = {"temp": 0.0, "smoke": 0.0, "ir": 0, "global": 0.0, "proximity": 0}
     scores_hist = deque(maxlen=10000)
+    fsm_events  = []   # [(frame_index, event_type)] — "suspicion","confirm","extinguish"
 
-    return robot, ppm_h, temp_h, scores, scores_hist
+    return robot, ppm_h, temp_h, scores, scores_hist, fsm_events
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  ADVANCE ONE FRAME
 # ─────────────────────────────────────────────────────────────────────────────
-def advance(fi, data, robot, ppm_h, temp_h, scores_hist):
+def advance(fi, data, robot, ppm_h, temp_h, scores_hist, fsm_events):
     """
     Process one dataset frame:
       - Extract raw sensor values (ppm, temp) — no warnings, no motor data
@@ -755,10 +826,19 @@ def advance(fi, data, robot, ppm_h, temp_h, scores_hist):
 
         dr = robot.current_pos[0] - prev_pos[0]
         dc = robot.current_pos[1] - prev_pos[1]
-        if   dc ==  1: robot._angle = 0.0
-        elif dc == -1: robot._angle = math.pi
-        elif dr ==  1: robot._angle = math.pi / 2
-        elif dr == -1: robot._angle = -math.pi / 2
+        if   dc ==  1: robot._target_angle = 0.0
+        elif dc == -1: robot._target_angle = math.pi
+        elif dr ==  1: robot._target_angle = math.pi / 2
+        elif dr == -1: robot._target_angle = -math.pi / 2
+
+    # Record FSM transition events for timeline markers
+    if prev_state != robot.current_state:
+        if robot.current_state == RobotState.SUSPICION:
+            fsm_events.append((fi, "suspicion"))
+        elif robot.current_state == RobotState.CONFIRM:
+            fsm_events.append((fi, "confirm"))
+        elif robot.current_state == RobotState.EXTINGUISH:
+            fsm_events.append((fi, "extinguish"))
 
     # Record the cell where fire was first confirmed
     if (robot._fire_cell is None and
@@ -796,7 +876,7 @@ def main():
         data = json.load(f)
     total = len(data)
 
-    robot, ppm_h, temp_h, scores, scores_hist = build_sim()
+    robot, ppm_h, temp_h, scores, scores_hist, fsm_events = build_sim()
 
     # Prime frame 0 — IDLE -> PATROL, plans first A* path
     sensor_data  = FireDetector.from_dataset_entry(data[0])
@@ -831,7 +911,7 @@ def main():
                     playing = not playing
 
                 elif ev.key == pygame.K_RIGHT:
-                    fi, scores = advance(fi, data, robot, ppm_h, temp_h, scores_hist)
+                    fi, scores = advance(fi, data, robot, ppm_h, temp_h, scores_hist, fsm_events)
                     playhead   = float(fi)
 
                 elif ev.key == pygame.K_LEFT:
@@ -843,7 +923,7 @@ def main():
                     fi       = 0
                     playhead = 0.0
                     playing  = True
-                    robot, ppm_h, temp_h, scores, scores_hist = build_sim()
+                    robot, ppm_h, temp_h, scores, scores_hist, fsm_events = build_sim()
                     sensor_data  = FireDetector.from_dataset_entry(data[0])
                     robot.inject_sensor_data(sensor_data)
                     robot.step()
@@ -858,7 +938,7 @@ def main():
                 elif ev.key == pygame.K_3: speed_mult = 20
 
                 elif ev.key == pygame.K_s:
-                    p      = export_report(fi, data, robot, scores)
+                    p      = export_report(fi, data, robot, scores, scores_hist, fsm_events)
                     emsg   = f"Exported: {os.path.basename(p)}"
                     etimer = 3000
 
@@ -867,15 +947,29 @@ def main():
             playhead += (1000.0 / FRAME_MS) * speed_mult * (dt / 1000.0)
             new_fi    = min(int(playhead), total - 1)
             while fi < new_fi:
-                fi, scores = advance(fi, data, robot, ppm_h, temp_h, scores_hist)
+                fi, scores = advance(fi, data, robot, ppm_h, temp_h, scores_hist, fsm_events)
                 if fi >= total - 1:
                     playing = False
                     break
 
-        # Smooth pixel interpolation toward current cell centre
-        tx, ty    = cell_to_px(*robot.current_pos)
-        robot._px = robot._px + (tx - robot._px) * 0.16
-        robot._py = robot._py + (ty - robot._py) * 0.16
+        # Smooth pixel interpolation — dt-based so speed is frame-rate independent.
+        # Lerp factor scales with playback speed so robot keeps up visually.
+        tx, ty      = cell_to_px(*robot.current_pos)
+        base_lerp   = 1.0 - math.exp(-12.0 * speed_mult * dt / 1000.0)
+        lerp_f      = min(base_lerp, 0.92)
+        robot._px  += (tx - robot._px) * lerp_f
+        robot._py  += (ty - robot._py) * lerp_f
+
+        # Angle lerp — shortest rotation path, handles 0↔2π wrap
+        da = robot._target_angle - robot._angle
+        # Wrap da into [-π, π]
+        da = (da + math.pi) % (2 * math.pi) - math.pi
+        angle_lerp  = min(1.0 - math.exp(-14.0 * speed_mult * dt / 1000.0), 0.92)
+        robot._angle += da * angle_lerp
+
+        # Wheel rotation — accumulate based on pixel distance moved
+        moved = math.hypot(tx - robot._px, ty - robot._py)
+        robot._wheel_rot = (robot._wheel_rot + moved * 0.18) % (2 * math.pi)
 
         # ── Draw ──────────────────────────────────────────────────────────────
         screen.fill(BG)
@@ -883,7 +977,7 @@ def main():
         draw_left(screen, fi, data, fonts, robot, scores)
         draw_arena(screen, robot, fonts)
         draw_right(screen, fi, data, ppm_h, temp_h, fonts, robot)
-        draw_timeline(screen, fi, total, data, fonts, scores_hist, robot)
+        draw_timeline(screen, fi, total, data, fonts, scores_hist, robot, fsm_events)
 
         # Export toast notification
         if emsg and etimer > 0:

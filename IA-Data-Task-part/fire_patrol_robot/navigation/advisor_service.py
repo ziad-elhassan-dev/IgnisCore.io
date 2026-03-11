@@ -64,7 +64,7 @@ class AdvisorService:
         # 3600 secondes = 1 heure. Plus le temps écoulé est grand, plus le score est élevé.
         time_elapsed = time.time() - data["last_inspected"]
         # Normalisation (ici, on donne une valeur arbitraire maximale de 5h = 1.0 pour le temps)
-        time_score = min(time_elapsed / (3600 * 5), 1.0) * 0.6
+        time_score = min(time_elapsed / 120, 1.0) * 0.6  # 120s = stale in simulation timescale
         
         # Heuristique 2: Risque historique (poids 0.4)
         risk_score = data["avg_risk_score"] * 0.4
