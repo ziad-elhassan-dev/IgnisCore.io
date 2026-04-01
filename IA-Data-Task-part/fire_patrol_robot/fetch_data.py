@@ -3,7 +3,7 @@ import time
 import json
 
 base_url = "https://yboost.corentinhoffmann.fr/"
-token = "x"
+token = "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOiIxMWRkNTAwNC03NzEyLTRjNzUtOWJhNC03ZjJkOTk0OWUxMDkiLCJlbWFpbCI6ImRldmVsb3BwZXJAY29yZW50aW5ob2ZmbWFubi5mciIsImlhdCI6MTc3NTAyNzAxOSwiZXhwIjoxNzc1MTEzNDE5fQ.5vQONMnD-tKRr9jU4OIAjM8Y2Y866w5yqH3gZPvQfUg"
 
 headers = {"Authorization": f"Bearer {token}"}
 data = []

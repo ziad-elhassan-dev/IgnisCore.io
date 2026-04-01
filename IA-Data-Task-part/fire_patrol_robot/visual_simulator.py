@@ -39,6 +39,7 @@ from collections import deque
 from datetime import datetime, timezone
 
 import pygame
+import paho.mqtt.client as mqtt
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  PROJECT IMPORTS  — real classes, not copies
@@ -55,6 +56,18 @@ from robot.robot_controller import RobotController, RobotState, MAP_GRID
 #  DATASET
 # ─────────────────────────────────────────────────────────────────────────────
 DATASET_PATH = os.path.join(PROJECT_ROOT, "dataset_robot_fire_detection_001.json")
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MQTT
+# ─────────────────────────────────────────────────────────────────────────────
+MQTT_BROKER   = "51.254.138.154"
+MQTT_PORT     = 1883
+MQTT_TOPIC    = "robot/simulator/sensor_data"
+MQTT_USER     = "admin"
+MQTT_PASSWORD = "YNOVBOOST2026!"
+
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  LAYOUT
@@ -859,6 +872,27 @@ def advance(fi, data, robot, ppm_h, temp_h, scores_hist, fsm_events):
     temp_h.append(sensor_data["temperature"])
     scores_hist.append(scores["global"])
 
+    # ── MQTT publish ──────────────────────────────────────────────────────────
+    try:
+        payload = json.dumps({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "frame": fi,
+            "robot": {
+                "state": str(robot.current_state),
+                "position": list(robot.current_pos),
+            },
+            "sensors": {
+                "temperature": sensor_data["temperature"],
+                "smoke":       sensor_data["smoke"],
+                "humidity":    sensor_data.get("humidity", 0),
+                "ir":          sensor_data.get("ir", 0),
+            },
+            "fire_risk": scores,
+        })
+        mqtt_client.publish(MQTT_TOPIC, payload)
+    except Exception:
+        pass
+
     return fi, scores
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -877,6 +911,14 @@ def main():
     total = len(data)
 
     robot, ppm_h, temp_h, scores, scores_hist, fsm_events = build_sim()
+
+    # ── MQTT connect ──────────────────────────────────────────────────────────
+    try:
+        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+        mqtt_client.loop_start()
+        print(f"[MQTT] Connected to {MQTT_BROKER}:{MQTT_PORT}")
+    except Exception as exc:
+        print(f"[MQTT] Connection failed: {exc}")
 
     # Prime frame 0 — IDLE -> PATROL, plans first A* path
     sensor_data  = FireDetector.from_dataset_entry(data[0])
@@ -990,6 +1032,8 @@ def main():
 
         pygame.display.flip()
 
+    mqtt_client.loop_stop()
+    mqtt_client.disconnect()
     pygame.quit()
     sys.exit()
 
